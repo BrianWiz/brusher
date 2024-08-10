@@ -1,7 +1,8 @@
-use math::{Dimensions, Vector3};
-pub mod math;
+use crate::math::{CuboidDimensions, CylinderDimensions, Vector3};
 
-const EPSILON: f64 = 1e-4;
+pub mod primitives;
+
+const EPSILON: f64 = 1e-6;
 
 pub enum SurfaceOperation {
     Add,
@@ -82,19 +83,6 @@ impl SurfaceGroup {
 
     pub fn knife(&mut self, plane: SurfacePlane) {
         self.planes.push(plane);
-
-        // remove any planes that are no longer valid
-        let planes_clone = self.planes.clone();
-        self.planes.retain(|p| {
-            planes_clone.iter().all(|other| {
-                if p == other {
-                    return true;
-                }
-
-                let intersection = SurfacePlane::threeway_intersection(p, other, &plane);
-                p.normal.dot(&intersection) <= p.distance + EPSILON
-            })
-        });
     }
 }
 
@@ -105,29 +93,33 @@ pub struct MeshData {
 }
 
 pub struct Brush {
-    surface_groups: Vec<SurfaceGroup>,
+    pub surface_groups: Vec<SurfaceGroup>,
+    pub origin: Vector3,
 }
 
 impl Brush {
-    pub fn new(surface_groups: Vec<SurfaceGroup>) -> Self {
-        Brush { surface_groups }
+    pub fn new(origin: Vector3, surface_groups: Vec<SurfaceGroup>) -> Self {
+        Brush { surface_groups, origin }
     }
 
-    pub fn cuboid(origin: Vector3, dimensions: Dimensions) -> Self {
-        let x = dimensions.width / 2.0;
-        let y = dimensions.height / 2.0;
-        let z = dimensions.depth / 2.0;
+    pub fn cuboid(origin: Vector3, dimensions: CuboidDimensions) -> Self {
+        Brush::new(
+            origin,
+            vec![
+                primitives::cuboid(Vector3::ZERO, dimensions, SurfaceOperation::Add),
+            ])
+    }
 
-        let surface_group = SurfaceGroup::new(vec![
-            SurfacePlane::new(math::Vector3::new(1.0, 0.0, 0.0), origin.x + x),
-            SurfacePlane::new(math::Vector3::new(-1.0, 0.0, 0.0), -(origin.x - x)),
-            SurfacePlane::new(math::Vector3::new(0.0, 1.0, 0.0), origin.y + y),
-            SurfacePlane::new(math::Vector3::new(0.0, -1.0, 0.0), -(origin.y - y)),
-            SurfacePlane::new(math::Vector3::new(0.0, 0.0, 1.0), origin.z + z),
-            SurfacePlane::new(math::Vector3::new(0.0, 0.0, -1.0), -(origin.z - z)),
-        ]);
-
-        Brush::new(vec![surface_group])
+    pub fn cylinder(
+        origin: Vector3,
+        dimensions: CylinderDimensions,
+        slices: u32,
+    ) -> Self {
+        Brush::new(
+            origin,
+            vec![
+                primitives::cylinder(Vector3::ZERO, dimensions, slices, SurfaceOperation::Add),
+            ])
     }
 
     pub fn knife(&mut self, plane: SurfacePlane) -> &Self {
@@ -151,7 +143,7 @@ impl Brush {
                 let start_index = positions.len() as u32;
 
                 for vertex in &triangle.vertices {
-                    positions.push(*vertex);
+                    positions.push(*vertex + self.origin);
                     normals.push(triangle.normal);
                 }
 
@@ -177,18 +169,11 @@ fn generate_vertices(brush: &Brush) -> Vec<Vector3> {
         for i in 0..plane_count {
             for j in (i + 1)..plane_count {
                 for k in (j + 1)..plane_count {
-                    let point =
-                        SurfacePlane::threeway_intersection(&planes[i], &planes[j], &planes[k]);
+                    let point = SurfacePlane::threeway_intersection(&planes[i], &planes[j], &planes[k]);
 
-                    // Ensure the point is inside all planes and is unique
-                    if planes
-                        .iter()
-                        .all(|p| p.normal.dot(&point) <= p.distance + EPSILON)
-                    {
-                        if !vertices
-                            .iter()
-                            .any(|v: &Vector3| (*v - point).magnitude() < EPSILON)
-                        {
+                    // ensure the point is inside all planes and is unique
+                    if planes.iter().all(|p| p.normal.dot(&point) <= p.distance + EPSILON) {
+                        if !vertices.iter().any(|v: &Vector3| (*v - point).magnitude() < EPSILON) {
                             vertices.push(point);
                         }
                     }
@@ -197,9 +182,8 @@ fn generate_vertices(brush: &Brush) -> Vec<Vector3> {
         }
     }
 
-    // Remove duplicate vertices
+    // remove duplicate vertices
     vertices.dedup_by(|a, b| (*a - *b).magnitude() < EPSILON);
-    println!("Vertices: {:?}", vertices.len());
 
     vertices
 }

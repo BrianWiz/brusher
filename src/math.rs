@@ -167,8 +167,13 @@ impl Div<f64> for Vector3 {
     }
 }
 
-pub struct Dimensions {
+pub struct CuboidDimensions {
     pub width: f64,
     pub height: f64,
     pub depth: f64,
+}
+
+pub struct CylinderDimensions {
+    pub radius: f64,
+    pub height: f64,
 }
