@@ -4,7 +4,7 @@ pub mod primitives;
 
 const EPSILON: f64 = 1e-6;
 
-pub enum SurfaceOperation {
+pub enum BoolOperation {
     Add,
     Subtract,
 }
@@ -33,51 +33,50 @@ impl SurfacePlane {
         p1: &SurfacePlane,
         p2: &SurfacePlane,
         p3: &SurfacePlane,
-    ) -> Vector3 {
+    ) -> Option<Vector3> {
         let n1 = &p1.normal;
         let n2 = &p2.normal;
         let n3 = &p3.normal;
 
-        let n1n2 = n1.cross(&n2);
-        let n2n3 = n2.cross(&n3);
-        let n3n1 = n3.cross(&n1);
+        let denom = n1.dot(&n2.cross(n3));
 
-        let denom = n1.dot(&n2n3);
+        if denom.abs() < EPSILON {
+            // The planes are parallel or nearly parallel
+            return None;
+        }
 
-        let p1d = p1.distance;
-        let p2d = p2.distance;
-        let p3d = p3.distance;
+        let p =
+            (n2.cross(n3) * p1.distance + n3.cross(n1) * p2.distance + n1.cross(n2) * p3.distance)
+                / denom;
 
-        let p = n2n3 * p1d + n3n1 * p2d + n1n2 * p3d;
-
-        (p / denom).into()
+        Some(p)
     }
 }
 
 pub struct SurfaceGroup {
     pub planes: Vec<SurfacePlane>,
-    pub operation: SurfaceOperation,
+    pub operation: BoolOperation,
 }
 
 impl SurfaceGroup {
     pub fn new(planes: Vec<SurfacePlane>) -> Self {
         SurfaceGroup {
             planes,
-            operation: SurfaceOperation::Add,
+            operation: BoolOperation::Add,
         }
     }
 
     pub fn new_add(planes: Vec<SurfacePlane>) -> Self {
         SurfaceGroup {
             planes,
-            operation: SurfaceOperation::Add,
+            operation: BoolOperation::Add,
         }
     }
 
     pub fn new_subtract(planes: Vec<SurfacePlane>) -> Self {
         SurfaceGroup {
             planes,
-            operation: SurfaceOperation::Subtract,
+            operation: BoolOperation::Subtract,
         }
     }
 
@@ -99,27 +98,44 @@ pub struct Brush {
 
 impl Brush {
     pub fn new(origin: Vector3, surface_groups: Vec<SurfaceGroup>) -> Self {
-        Brush { surface_groups, origin }
+        Brush {
+            surface_groups,
+            origin,
+        }
+    }
+
+    pub fn concave_polygon(origin: Vector3) -> Self {
+        Brush::new(
+            origin,
+            vec![primitives::concave_polygon(
+                Vector3::ZERO,
+                Vector3::new(1.0, 0.5, 1.0),
+                BoolOperation::Add,
+            )],
+        )
     }
 
     pub fn cuboid(origin: Vector3, dimensions: CuboidDimensions) -> Self {
         Brush::new(
             origin,
-            vec![
-                primitives::cuboid(Vector3::ZERO, dimensions, SurfaceOperation::Add),
-            ])
+            vec![primitives::cuboid(
+                Vector3::ZERO,
+                dimensions,
+                BoolOperation::Add,
+            )],
+        )
     }
 
-    pub fn cylinder(
-        origin: Vector3,
-        dimensions: CylinderDimensions,
-        slices: u32,
-    ) -> Self {
+    pub fn cylinder(origin: Vector3, dimensions: CylinderDimensions, slices: u32) -> Self {
         Brush::new(
             origin,
-            vec![
-                primitives::cylinder(Vector3::ZERO, dimensions, slices, SurfaceOperation::Add),
-            ])
+            vec![primitives::cylinder(
+                Vector3::ZERO,
+                dimensions,
+                slices,
+                BoolOperation::Add,
+            )],
+        )
     }
 
     pub fn knife(&mut self, plane: SurfacePlane) -> &Self {
@@ -160,32 +176,93 @@ impl Brush {
 }
 
 fn generate_vertices(brush: &Brush) -> Vec<Vector3> {
-    let mut vertices = Vec::new();
+    const EPSILON: f64 = 1e-6;
+
+    let mut all_vertices = Vec::new();
 
     for group in &brush.surface_groups {
+        let mut potential_vertices = Vec::new();
+        let mut intersecting_planes = Vec::new();
+
         let planes = &group.planes;
         let plane_count = planes.len();
 
         for i in 0..plane_count {
             for j in (i + 1)..plane_count {
                 for k in (j + 1)..plane_count {
-                    let point = SurfacePlane::threeway_intersection(&planes[i], &planes[j], &planes[k]);
+                    if let Some(point) =
+                        SurfacePlane::threeway_intersection(&planes[i], &planes[j], &planes[k])
+                    {
+                        // Check if the point is on all three intersecting planes
+                        let on_intersection = [i, j, k].iter().all(|&idx| {
+                            (planes[idx].normal.dot(&point) - planes[idx].distance).abs() < EPSILON
+                        });
 
-                    // ensure the point is inside all planes and is unique
-                    if planes.iter().all(|p| p.normal.dot(&point) <= p.distance + EPSILON) {
-                        if !vertices.iter().any(|v: &Vector3| (*v - point).magnitude() < EPSILON) {
-                            vertices.push(point);
+                        if on_intersection {
+                            potential_vertices.push(point);
+                            intersecting_planes.push((&planes[i], &planes[j], &planes[k]));
                         }
                     }
                 }
             }
         }
+
+        // Filter out invalid vertices
+        let valid_vertices: Vec<Vector3> = potential_vertices
+            .into_iter()
+            .filter(|point| !is_outside_nearest_intersecting_planes(point, &intersecting_planes))
+            .collect();
+
+        println!("Total vertices found: {}", valid_vertices.len());
+        for (i, v) in valid_vertices.iter().enumerate() {
+            println!("Vertex {}: {:?}", i, v);
+        }
+
+        all_vertices.extend(valid_vertices);
     }
 
-    // remove duplicate vertices
-    vertices.dedup_by(|a, b| (*a - *b).magnitude() < EPSILON);
+    all_vertices
+}
 
-    vertices
+fn is_outside_nearest_intersecting_planes(
+    point: &Vector3,
+    intersection_planes: &Vec<(&SurfacePlane, &SurfacePlane, &SurfacePlane)>,
+) -> bool {
+    let (a, b, c) = nearest_intersecting_planes(point, intersection_planes);
+
+    let normal = (b.normal - a.normal).cross(&(c.normal - a.normal));
+    let to_point = *point - a.normal * a.distance;
+    let distance = to_point.dot(&normal);
+
+    distance < 0.0
+}
+
+fn nearest_intersecting_planes(
+    point: &Vector3,
+    intersection_planes: &Vec<(&SurfacePlane, &SurfacePlane, &SurfacePlane)>,
+) -> (SurfacePlane, SurfacePlane, SurfacePlane) {
+    let mut min_distance = f64::INFINITY;
+    let mut nearest_planes = (
+        SurfacePlane::new(Vector3::ZERO, 0.0),
+        SurfacePlane::new(Vector3::ZERO, 0.0),
+        SurfacePlane::new(Vector3::ZERO, 0.0),
+    );
+
+    for (a, b, c) in intersection_planes {
+        let distance =
+            distance_to_plane(point, a) + distance_to_plane(point, b) + distance_to_plane(point, c);
+
+        if distance < min_distance {
+            min_distance = distance;
+            nearest_planes = (**a, **b, **c);
+        }
+    }
+
+    nearest_planes
+}
+
+fn distance_to_plane(point: &Vector3, plane: &SurfacePlane) -> f64 {
+    (plane.normal.dot(point) - plane.distance).abs()
 }
 
 fn triangulate_faces(brush: &Brush, vertices: &[Vector3]) -> Vec<Face> {

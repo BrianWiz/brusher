@@ -17,6 +17,12 @@ impl Vector3 {
         z: 0.0,
     };
 
+    pub const UP: Vector3 = Vector3 {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
+
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Vector3 { x, y, z }
     }
