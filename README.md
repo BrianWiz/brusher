@@ -18,6 +18,7 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
 - [x] subtract
     - [ ] handle maintaining materials per surface
 - [x] knife
+- [ ] serialization
 - [ ] extrude
 - [ ] bevel
     - technically already possible manually by using `knife` but just needs a helper function
