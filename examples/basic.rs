@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
+use bevy::render::texture::{
+    ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
+};
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 use brusher::brush::types::{Plane, Surface};
@@ -49,8 +52,19 @@ fn setup(
         PanOrbitCamera::default(),
     ));
 
-    // Load the texture
-    let texture_handle: Handle<Image> = asset_server.load("proto.png");
+    // Mesh
+
+    let sampler_desc = ImageSamplerDescriptor {
+        address_mode_u: ImageAddressMode::Repeat,
+        address_mode_v: ImageAddressMode::Repeat,
+        ..Default::default()
+    };
+
+    let settings = move |s: &mut ImageLoaderSettings| {
+        s.sampler = ImageSampler::Descriptor(sampler_desc.clone());
+    };
+
+    let texture_handle = asset_server.load_with_settings("proto.png", settings);
 
     // Cube subtracted from another cube and then has a corner cut off with a plane.
     let cube = Brush::cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(1.0, 1.0, 1.0));
@@ -98,8 +112,8 @@ pub fn csg_to_bevy_mesh(csg: &Brush) -> Mesh {
                 vertex.normal.z as f32,
             ]);
 
-            let uv = polygon.surface.compute_uv(vertex.pos);
-            uvs.push([uv.x as f32, uv.y as f32]);
+            let uv = polygon.surface.compute_texture_coordinates(vertex.pos);
+            uvs.push([uv.x, uv.y]);
 
             index_count += 1;
         }

@@ -1,4 +1,4 @@
-use glam::{DVec2, DVec3, Vec2};
+use glam::{DVec2, DVec3, Mat2, Mat3, Vec2, Vec3};
 
 pub trait TPlane {
     const EPSILON: f64 = 1e-5;
@@ -124,36 +124,51 @@ impl TPlane for Plane {
 pub struct Surface {
     pub normal: DVec3,
     pub distance: f64,
-    pub u_axis: DVec3,
-    pub v_axis: DVec3,
+    pub texture_scale: Vec2,
+    pub texture_offset: Vec2,
+    pub texture_rotation: f32,
 }
 
 impl Surface {
     pub fn new(normal: DVec3, distance: f64) -> Self {
-        let (u_axis, v_axis) = Self::compute_uv_axes(&normal);
         Self {
             normal: normal.normalize(),
             distance,
-            u_axis,
-            v_axis,
+            texture_scale: Vec2::new(1.0, 1.0),
+            texture_offset: Vec2::new(0.0, 0.0),
+            texture_rotation: 0.0,
         }
     }
 
-    /// Computes UV coordinates for a point on the plane.
-    pub fn compute_uv(&self, point: DVec3) -> DVec2 {
+    /// Computes the texture coordinates for a given point.
+    pub fn compute_texture_coordinates(&self, point: DVec3) -> Vec2 {
+        let (u_axis, v_axis) = self.compute_texture_axes();
+
         let projected = point - self.normal * self.distance;
-        DVec2::new(projected.dot(self.u_axis), projected.dot(self.v_axis))
+        let u = projected.dot(u_axis) as f32;
+        let v = projected.dot(v_axis) as f32;
+
+        // Apply rotation
+        let cos_rot = self.texture_rotation.cos();
+        let sin_rot = self.texture_rotation.sin();
+        let rotated_u = u * cos_rot - v * sin_rot;
+        let rotated_v = u * sin_rot + v * cos_rot;
+
+        // Apply scale and offset
+        Vec2::new(
+            rotated_u / self.texture_scale.x + self.texture_offset.x,
+            rotated_v / self.texture_scale.y + self.texture_offset.y,
+        )
     }
 
-    /// Computes UV axes for the plane.
-    fn compute_uv_axes(normal: &DVec3) -> (DVec3, DVec3) {
-        let up = if normal.x.abs() < 0.9 {
+    fn compute_texture_axes(&self) -> (DVec3, DVec3) {
+        let up = if self.normal.x.abs() < 0.9 {
             DVec3::X
         } else {
             DVec3::Y
         };
-        let u_axis = up.cross(*normal).normalize();
-        let v_axis = normal.cross(u_axis);
+        let u_axis = up.cross(self.normal).normalize();
+        let v_axis = self.normal.cross(u_axis);
         (u_axis, v_axis)
     }
 
