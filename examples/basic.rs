@@ -133,7 +133,7 @@ pub fn cuboid(origin: DVec3, dimensions: DVec3) -> Brush {
             texture_offset: GlamVec2::new(0.0, 0.0),
             texture_scale: GlamVec2::new(1.0, 1.0),
             texture_rotation: 0.0,
-            material: Some(1),
+            material: Some(0),
             surface_type: SurfaceType::Concrete(0),
         },
         // Bottom
@@ -143,7 +143,7 @@ pub fn cuboid(origin: DVec3, dimensions: DVec3) -> Brush {
             texture_offset: GlamVec2::new(0.0, 0.0),
             texture_scale: GlamVec2::new(1.0, 1.0),
             texture_rotation: 0.0,
-            material: Some(0),
+            material: Some(1),
             surface_type: SurfaceType::Concrete(0),
         },
         // Front
@@ -153,7 +153,7 @@ pub fn cuboid(origin: DVec3, dimensions: DVec3) -> Brush {
             texture_offset: GlamVec2::new(0.0, 0.0),
             texture_scale: GlamVec2::new(1.0, 1.0),
             texture_rotation: 0.0,
-            material: Some(1),
+            material: Some(0),
             surface_type: SurfaceType::Concrete(0),
         },
         // Back
@@ -163,7 +163,7 @@ pub fn cuboid(origin: DVec3, dimensions: DVec3) -> Brush {
             texture_offset: GlamVec2::new(0.0, 0.0),
             texture_scale: GlamVec2::new(1.0, 1.0),
             texture_rotation: 0.0,
-            material: Some(0),
+            material: Some(1),
             surface_type: SurfaceType::Concrete(0),
         },
     ];
