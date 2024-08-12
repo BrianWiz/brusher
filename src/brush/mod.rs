@@ -97,9 +97,9 @@ impl Brush {
         Brush::from_polygons(a.all_polygons())
     }
 
-    /// Cuts the CSG object with a plane, discarding anything behind the plane.
+    /// Cuts the CSG object with a plane, discarding anything in front of the plane.
     pub fn knife(&mut self, plane: Plane) -> Self {
-        const LARGE_VALUE: f64 = 1e6;
+        const LARGE_VALUE: f64 = 1e2;
 
         // create a cuboid with it's front face being the passed in plane
 

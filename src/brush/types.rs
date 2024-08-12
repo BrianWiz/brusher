@@ -1,4 +1,4 @@
-use glam::DVec3;
+use glam::{DVec2, DVec3, Vec2};
 
 pub trait TPlane {
     const EPSILON: f64 = 1e-5;
@@ -32,7 +32,7 @@ pub trait TPlane {
         let mut types = Vec::with_capacity(polygon.vertices.len());
 
         for v in &polygon.vertices {
-            let t = self.normal().dot(v.pos) - self.distance();
+            let t = self.normal().dot(v.pos) as f64 - self.distance();
             let type_ = if t < -Self::EPSILON {
                 back_flag
             } else if t > Self::EPSILON {
@@ -124,33 +124,43 @@ impl TPlane for Plane {
 pub struct Surface {
     pub normal: DVec3,
     pub distance: f64,
-    pub u: DVec3,
-    pub v: DVec3,
+    pub u_axis: DVec3,
+    pub v_axis: DVec3,
 }
 
 impl Surface {
     pub fn new(normal: DVec3, distance: f64) -> Self {
-        // compute uv coordinate system
-        let u = if normal.x.abs() > normal.y.abs() {
-            DVec3::new(-normal.z, 0.0, normal.x).normalize()
-        } else {
-            DVec3::new(0.0, normal.z, -normal.y).normalize()
-        };
-
-        let v = normal.cross(u).normalize();
-
+        let (u_axis, v_axis) = Self::compute_uv_axes(&normal);
         Self {
-            normal,
+            normal: normal.normalize(),
             distance,
-            u,
-            v,
+            u_axis,
+            v_axis,
         }
+    }
+
+    /// Computes UV coordinates for a point on the plane.
+    pub fn compute_uv(&self, point: DVec3) -> DVec2 {
+        let projected = point - self.normal * self.distance;
+        DVec2::new(projected.dot(self.u_axis), projected.dot(self.v_axis))
+    }
+
+    /// Computes UV axes for the plane.
+    fn compute_uv_axes(normal: &DVec3) -> (DVec3, DVec3) {
+        let up = if normal.x.abs() < 0.9 {
+            DVec3::X
+        } else {
+            DVec3::Y
+        };
+        let u_axis = up.cross(*normal).normalize();
+        let v_axis = normal.cross(u_axis);
+        (u_axis, v_axis)
     }
 
     /// Creates a plane from three points.
     pub fn from_points(a: &DVec3, b: &DVec3, c: &DVec3) -> Surface {
         let n = (*b - *a).cross(*c - *a).normalize();
-        Self::new(n, n.dot(*a))
+        Self::new(n, n.dot(*a) as f64)
     }
 }
 
