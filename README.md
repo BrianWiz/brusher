@@ -6,7 +6,7 @@ My hope is that it can essentially provide an API that can be used to create an 
 
 For things like curves, I'm considering adding [curvo by @mattatz](https://github.com/mattatz/curvo) as a dependency to provide a way to create curves like pipes & arches.
 
-## features
+## features & todo
 
 ![image](https://github.com/user-attachments/assets/e893433f-f732-4a21-be0d-e5bbe624a115)
 ^ a cuboid subtracting another cuboid, then have a corner sliced off.
