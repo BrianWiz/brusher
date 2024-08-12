@@ -26,6 +26,7 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
 - [x] construct `Brush` from `Vec<Surface>`
     - allows you to define a convex solid by defining its surfaces (planes)
 - [ ] smooth normals with configurable angle tolerance
+- [ ] editor API
 
 ## example (Bevy)
 `cargo run --example basic`
