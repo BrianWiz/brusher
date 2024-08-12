@@ -22,20 +22,20 @@ impl Brush {
         let half_dims = dimensions * 0.5;
         let planes = vec![
             // Right
-            Plane::new(DVec3::new(1.0, 0.0, 0.0), half_dims.x + origin.x),
+            Surface::new(DVec3::new(1.0, 0.0, 0.0), half_dims.x + origin.x),
             // Left
-            Plane::new(DVec3::new(-1.0, 0.0, 0.0), half_dims.x - origin.x),
+            Surface::new(DVec3::new(-1.0, 0.0, 0.0), half_dims.x - origin.x),
             // Top
-            Plane::new(DVec3::new(0.0, 1.0, 0.0), half_dims.y + origin.y),
+            Surface::new(DVec3::new(0.0, 1.0, 0.0), half_dims.y + origin.y),
             // Bottom
-            Plane::new(DVec3::new(0.0, -1.0, 0.0), half_dims.y - origin.y),
+            Surface::new(DVec3::new(0.0, -1.0, 0.0), half_dims.y - origin.y),
             // Front
-            Plane::new(DVec3::new(0.0, 0.0, 1.0), half_dims.z + origin.z),
+            Surface::new(DVec3::new(0.0, 0.0, 1.0), half_dims.z + origin.z),
             // Back
-            Plane::new(DVec3::new(0.0, 0.0, -1.0), half_dims.z - origin.z),
+            Surface::new(DVec3::new(0.0, 0.0, -1.0), half_dims.z - origin.z),
         ];
 
-        Self::from_planes(planes)
+        Self::from_surfaces(planes)
     }
 
     /// Creates a CSG object from a list of polygons.
@@ -44,7 +44,7 @@ impl Brush {
     }
 
     /// Creates a CSG object from a list of planes.
-    pub fn from_planes(planes: Vec<Plane>) -> Self {
+    pub fn from_surfaces(planes: Vec<Surface>) -> Self {
         let vertices = Self::generate_vertices(&planes);
         let polygons = Self::triangulate_polygons(&planes, &vertices);
         Self { polygons }
@@ -111,18 +111,18 @@ impl Brush {
         u = u.cross(plane.normal).normalize();
         let v = plane.normal.cross(u).normalize();
 
-        let front_plane = Plane::new(-plane.normal, -plane.distance);
-        let back_plane = Plane::new(plane.normal, plane.distance + LARGE_VALUE);
+        let front_plane = Surface::new(-plane.normal, -plane.distance);
+        let back_plane = Surface::new(plane.normal, plane.distance + LARGE_VALUE);
         let planes = vec![
-            front_plane,                 // Cutting plane
-            back_plane,                  // Far side plane
-            Plane::new(u, LARGE_VALUE),  // Right plane
-            Plane::new(-u, LARGE_VALUE), // Left plane
-            Plane::new(v, LARGE_VALUE),  // Top plane
-            Plane::new(-v, LARGE_VALUE), // Bottom plane
+            front_plane,                   // Cutting plane
+            back_plane,                    // Far side plane
+            Surface::new(u, LARGE_VALUE),  // Right plane
+            Surface::new(-u, LARGE_VALUE), // Left plane
+            Surface::new(v, LARGE_VALUE),  // Top plane
+            Surface::new(-v, LARGE_VALUE), // Bottom plane
         ];
 
-        let cutting_cuboid = Brush::from_planes(planes);
+        let cutting_cuboid = Brush::from_surfaces(planes);
         self.subtract(&cutting_cuboid)
     }
 
@@ -136,7 +136,7 @@ impl Brush {
     }
 
     /// Generates a list of vertices from a list of planes.
-    fn generate_vertices(planes: &[Plane]) -> Vec<DVec3> {
+    fn generate_vertices(planes: &[Surface]) -> Vec<DVec3> {
         let mut vertices = Vec::new();
 
         let plane_count = planes.len();
@@ -171,7 +171,7 @@ impl Brush {
     }
 
     /// Finds the intersection point of three planes.
-    fn threeway_intersection(p1: &Plane, p2: &Plane, p3: &Plane) -> Option<DVec3> {
+    fn threeway_intersection(p1: &Surface, p2: &Surface, p3: &Surface) -> Option<DVec3> {
         let n1 = &p1.normal;
         let n2 = &p2.normal;
         let n3 = &p3.normal;
@@ -191,7 +191,7 @@ impl Brush {
     }
 
     /// Triangulates a set of vertices based on a set of planes, creating a list of polygons.
-    fn triangulate_polygons(planes: &[Plane], vertices: &[DVec3]) -> Vec<Polygon> {
+    fn triangulate_polygons(planes: &[Surface], vertices: &[DVec3]) -> Vec<Polygon> {
         let mut polygons = Vec::new();
 
         for plane in planes {
@@ -257,7 +257,7 @@ impl Brush {
 
                     polygons.push(Polygon {
                         vertices: triangle_vertices,
-                        plane: plane.clone(),
+                        surface: plane.clone(),
                         shared: 0,
                     });
                 }
@@ -270,7 +270,7 @@ impl Brush {
 
 #[derive(Clone)]
 pub struct Node {
-    plane: Option<Plane>,
+    plane: Option<Surface>,
     front: Option<Box<Node>>,
     back: Option<Box<Node>>,
     polygons: Vec<Polygon>,
@@ -358,7 +358,7 @@ impl Node {
         }
 
         if self.plane.is_none() {
-            self.plane = Some(polygons[0].plane.clone());
+            self.plane = Some(polygons[0].surface.clone());
         }
 
         let mut front = Vec::new();

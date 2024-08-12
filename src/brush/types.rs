@@ -1,39 +1,21 @@
 use glam::DVec3;
 
-#[derive(Clone, Copy)]
-pub struct Plane {
-    pub normal: DVec3,
-    pub distance: f64,
-    pub u: DVec3,
-    pub v: DVec3,
-}
+pub trait TPlane {
+    const EPSILON: f64 = 1e-5;
 
-impl Plane {
-    pub const EPSILON: f64 = 1e-5;
-
-    pub fn new(normal: DVec3, distance: f64) -> Self {
-        Self {
-            normal,
-            distance,
-            u: DVec3::ZERO,
-            v: DVec3::ZERO,
-        }
-    }
-
-    /// Creates a plane from three points.
-    pub fn from_points(a: &DVec3, b: &DVec3, c: &DVec3) -> Self {
-        let n = (*b - *a).cross(*c - *a).normalize();
-        Self::new(n, n.dot(*a))
-    }
+    fn normal(&self) -> &DVec3;
+    fn distance(&self) -> &f64;
+    fn normal_mut(&mut self) -> &mut DVec3;
+    fn distance_mut(&mut self) -> &mut f64;
 
     /// Flips the plane by reversing the normal and distance.
-    pub fn flip(&mut self) {
-        self.normal = -self.normal;
-        self.distance = -self.distance;
+    fn flip(&mut self) {
+        *self.normal_mut() = -*self.normal();
+        *self.distance_mut() = -*self.distance();
     }
 
     /// Splits a polygon into coplanar, front, and back polygons.
-    pub fn split_polygon(
+    fn split_polygon(
         &self,
         polygon: &Polygon,
         coplanar_front: &mut Vec<Polygon>,
@@ -50,7 +32,7 @@ impl Plane {
         let mut types = Vec::with_capacity(polygon.vertices.len());
 
         for v in &polygon.vertices {
-            let t = self.normal.dot(v.pos) - self.distance;
+            let t = self.normal().dot(v.pos) - self.distance();
             let type_ = if t < -Self::EPSILON {
                 back_flag
             } else if t > Self::EPSILON {
@@ -64,7 +46,7 @@ impl Plane {
 
         match polygon_type {
             0 => {
-                if self.normal.dot(polygon.plane.normal) > 0.0 {
+                if self.normal().dot(polygon.surface.normal) > 0.0 {
                     coplanar_front.push(polygon.clone());
                 } else {
                     coplanar_back.push(polygon.clone());
@@ -94,8 +76,8 @@ impl Plane {
                         });
                     }
                     if (ti | tj) == spanning {
-                        let t = (self.distance - self.normal.dot(vi.pos))
-                            / self.normal.dot(vj.pos - vi.pos);
+                        let t = (self.distance() - self.normal().dot(vi.pos))
+                            / self.normal().dot(vj.pos - vi.pos);
                         let v = vi.lerp(vj, t);
                         f.push(v.clone());
                         b.push(v);
@@ -114,6 +96,82 @@ impl Plane {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct Plane {
+    pub normal: DVec3,
+    pub distance: f64,
+}
+
+impl TPlane for Plane {
+    fn normal(&self) -> &DVec3 {
+        &self.normal
+    }
+
+    fn distance(&self) -> &f64 {
+        &self.distance
+    }
+
+    fn normal_mut(&mut self) -> &mut DVec3 {
+        &mut self.normal
+    }
+
+    fn distance_mut(&mut self) -> &mut f64 {
+        &mut self.distance
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Surface {
+    pub normal: DVec3,
+    pub distance: f64,
+    pub u: DVec3,
+    pub v: DVec3,
+}
+
+impl Surface {
+    pub fn new(normal: DVec3, distance: f64) -> Self {
+        // compute uv coordinate system
+        let u = if normal.x.abs() > normal.y.abs() {
+            DVec3::new(-normal.z, 0.0, normal.x).normalize()
+        } else {
+            DVec3::new(0.0, normal.z, -normal.y).normalize()
+        };
+
+        let v = normal.cross(u).normalize();
+
+        Self {
+            normal,
+            distance,
+            u,
+            v,
+        }
+    }
+
+    /// Creates a plane from three points.
+    pub fn from_points(a: &DVec3, b: &DVec3, c: &DVec3) -> Surface {
+        let n = (*b - *a).cross(*c - *a).normalize();
+        Self::new(n, n.dot(*a))
+    }
+}
+
+impl TPlane for Surface {
+    fn normal(&self) -> &DVec3 {
+        &self.normal
+    }
+
+    fn distance(&self) -> &f64 {
+        &self.distance
+    }
+
+    fn normal_mut(&mut self) -> &mut DVec3 {
+        &mut self.normal
+    }
+
+    fn distance_mut(&mut self) -> &mut f64 {
+        &mut self.distance
+    }
+}
+
 /// A polygon in 3D space.
 #[derive(Clone)]
 pub struct Polygon {
@@ -124,7 +182,7 @@ pub struct Polygon {
     pub shared: i32,
 
     // Plane of the polygon.
-    pub plane: Plane,
+    pub surface: Surface,
 }
 
 impl Polygon {
@@ -132,11 +190,11 @@ impl Polygon {
         if vertices.len() < 3 {
             panic!("Polygon must have at least 3 vertices");
         }
-        let plane = Plane::from_points(&vertices[0].pos, &vertices[1].pos, &vertices[2].pos);
+        let surface = Surface::from_points(&vertices[0].pos, &vertices[1].pos, &vertices[2].pos);
         Self {
             vertices,
             shared,
-            plane,
+            surface,
         }
     }
 
@@ -146,7 +204,7 @@ impl Polygon {
         for v in &mut self.vertices {
             v.flip();
         }
-        self.plane.flip();
+        self.surface.flip();
     }
 }
 

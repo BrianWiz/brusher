@@ -3,7 +3,7 @@ use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
-use brusher::brush::types::Plane;
+use brusher::brush::types::{Plane, Surface};
 use brusher::brush::Brush;
 use glam::DVec3;
 
@@ -48,11 +48,13 @@ fn setup(
         PanOrbitCamera::default(),
     ));
 
+    // Cube subtracted from another cube and then has a corner cut off with a plane.
     let cube = Brush::cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(1.0, 1.0, 1.0));
     let cube2 = Brush::cuboid(DVec3::new(0.5, 0.5, 0.5), DVec3::new(1.0, 1.0, 1.0));
-    let final_solid = cube
-        .subtract(&cube2)
-        .knife(Plane::new(DVec3::new(1.0, 1.0, 1.0), 0.5));
+    let final_solid = cube.subtract(&cube2).knife(Plane {
+        normal: DVec3::new(1.0, 1.0, 1.0),
+        distance: 0.5,
+    });
 
     let mesh = csg_to_bevy_mesh(&final_solid);
 
