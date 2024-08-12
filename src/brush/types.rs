@@ -122,6 +122,26 @@ impl TPlane for Plane {
     }
 }
 
+/// The type of a surface.
+#[derive(Clone, Copy)]
+pub enum SurfaceType {
+    Clip(usize),
+    Grass(usize),
+    Concrete(usize),
+    Wood(usize),
+    Metal(usize),
+    Water(usize),
+    Glass(usize),
+    Dirt(usize),
+    Snow(usize),
+    Stone(usize),
+    Plastic(usize),
+    Fabric(usize),
+    Rubber(usize),
+    Lava(usize),
+    Ice(usize),
+}
+
 #[derive(Clone, Copy)]
 pub struct Surface {
     pub normal: DVec3,
@@ -129,6 +149,8 @@ pub struct Surface {
     pub texture_scale: Vec2,
     pub texture_offset: Vec2,
     pub texture_rotation: f32,
+    pub material: Option<usize>,
+    pub surface_type: SurfaceType,
 }
 
 impl Hash for Surface {
@@ -170,6 +192,8 @@ impl Surface {
             texture_scale: Vec2::new(1.0, 1.0),
             texture_offset: Vec2::new(0.0, 0.0),
             texture_rotation: 0.0,
+            material: None,
+            surface_type: SurfaceType::Concrete(0),
         }
     }
 

@@ -1,10 +1,8 @@
-use std::collections::{HashMap, HashSet};
-
-use glam::{DVec2, DVec3, Vec2};
+use glam::DVec3;
+use std::collections::HashMap;
+use types::*;
 
 pub mod types;
-
-use types::*;
 
 const EPSILON: f64 = 1e-5;
 
@@ -132,6 +130,7 @@ impl Brush {
         self.subtract(&cutting_cuboid)
     }
 
+    /// Deduplicates vertices. You'd typically use this for collision meshes.
     pub fn to_hull(&self) -> Self {
         let mut unique_vertices = Vec::<Vertex>::new();
         let mut deduped_polygons = Vec::new();
