@@ -3,8 +3,9 @@ use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
-use brusher::math::*;
-use brusher::brush::*;
+use brusher::brush::types::Plane;
+use brusher::brush::Brush;
+use glam::DVec3;
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
@@ -47,36 +48,14 @@ fn setup(
         PanOrbitCamera::default(),
     ));
 
-    // Create a cuboid, then knife it, creating a shape like this from the side view:
-    //  _______
-    // |       \
-    // |        \
-    // |         |
-    // |_________|
-    // let mut brush = Brush::cuboid(
-    //     Vector3::new(0.0, 0.0, 0.0),
-    //     CuboidDimensions {
-    //         width: 1.0,
-    //         height: 1.0,
-    //         depth: 1.0,
-    //     },
-    // );
+    let cube = Brush::cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(1.0, 1.0, 1.0));
+    let cube2 = Brush::cuboid(DVec3::new(0.5, 0.5, 0.5), DVec3::new(1.0, 1.0, 1.0));
+    let final_solid = cube
+        .subtract(&cube2)
+        .knife(Plane::new(DVec3::new(1.0, 1.0, 1.0), 0.5));
 
-    let mut brush = Brush::cylinder(
-        Vector3::new(0.0, 1.0, 1.0),
-        CylinderDimensions {
-            height: 1.0,
-            radius: 0.5,
-        },
-        16,
-    );
-    
-    brush.knife(SurfacePlane::new(
-        Vector3::new(1.0, 1.0, 0.0).normalize(),
-        0.5,
-    ));
+    let mesh = csg_to_bevy_mesh(&final_solid);
 
-    let mesh = polygon_mesh_to_bevy_mesh(&brush.to_mesh_data());
     commands.spawn(PbrBundle {
         mesh: meshes.add(mesh),
         material: materials.add(Color::srgb(0.5, 0.5, 0.5)),
@@ -85,30 +64,48 @@ fn setup(
     });
 }
 
-fn polygon_mesh_to_bevy_mesh(polygon_mesh: &MeshData) -> Mesh {
+pub fn csg_to_bevy_mesh(csg: &Brush) -> Mesh {
+    let mut positions = Vec::new();
+    let mut normals = Vec::new();
+    let mut indices = Vec::new();
+    let mut index_count = 0;
+
+    for polygon in &csg.polygons {
+        let start_index = index_count;
+        for vertex in &polygon.vertices {
+            positions.push([
+                vertex.pos.x as f32,
+                vertex.pos.y as f32,
+                vertex.pos.z as f32,
+            ]);
+            normals.push([
+                vertex.normal.x as f32,
+                vertex.normal.y as f32,
+                vertex.normal.z as f32,
+            ]);
+            index_count += 1;
+        }
+
+        if polygon.vertices.len() > 3 {
+            for i in 1..polygon.vertices.len() - 1 {
+                indices.push(start_index as u32);
+                indices.push((start_index + i) as u32);
+                indices.push((start_index + i + 1) as u32);
+            }
+        } else {
+            for i in 0..polygon.vertices.len() {
+                indices.push((start_index + i) as u32);
+            }
+        }
+    }
+
     let mut mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::default(),
     );
-
-    // Extract normals
-    let normals: Vec<[f32; 3]> = polygon_mesh
-        .normals
-        .iter()
-        .map(|n| [n.x as f32, n.y as f32, n.z as f32])
-        .collect();
-
-    // Extract Vertices
-    let positions: Vec<[f32; 3]> = polygon_mesh
-        .positions
-        .iter()
-        .map(|p| [p.x as f32, p.y as f32, p.z as f32])
-        .collect();
-
-    // Set mesh attributes
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-    mesh.insert_indices(Indices::U32(polygon_mesh.indices.clone()));
+    mesh.insert_indices(Indices::U32(indices));
 
     mesh
 }
