@@ -118,6 +118,7 @@ pub fn csg_to_bevy_mesh(csg: &Brush) -> Mesh {
             index_count += 1;
         }
 
+        // Handle polygons with more than 3 vertices
         if polygon.vertices.len() > 3 {
             for i in 1..polygon.vertices.len() - 1 {
                 indices.push(start_index as u32);

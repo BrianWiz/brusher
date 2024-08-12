@@ -1,4 +1,6 @@
-use glam::DVec3;
+use std::collections::{HashMap, HashSet};
+
+use glam::{DVec2, DVec3, Vec2};
 
 pub mod types;
 
@@ -45,8 +47,7 @@ impl Brush {
 
     /// Creates a CSG object from a list of planes.
     pub fn from_surfaces(planes: Vec<Surface>) -> Self {
-        let vertices = Self::generate_vertices(&planes);
-        let polygons = Self::triangulate_polygons(&planes, &vertices);
+        let polygons = Self::generate_polygons_from_surfaces(&planes);
         Self { polygons }
     }
 
@@ -98,11 +99,14 @@ impl Brush {
     }
 
     /// Cuts the CSG object with a plane, discarding anything in front of the plane.
-    pub fn knife(&mut self, plane: Plane) -> Self {
-        const LARGE_VALUE: f64 = 1e2;
+    pub fn knife(&self, plane: Plane) -> Self {
+        // Define a large value to ensure the cuboid encompasses the entire geometry
+        const LARGE_VALUE: f64 = 1e5;
 
-        // create a cuboid with it's front face being the passed in plane
+        // Create the primary cutting plane
+        let cutting_plane = Surface::new(-plane.normal, -plane.distance);
 
+        // Create two orthogonal vectors to the plane normal
         let mut u = if plane.normal.x.abs() > plane.normal.y.abs() {
             DVec3::new(0.0, 1.0, 0.0)
         } else {
@@ -111,19 +115,54 @@ impl Brush {
         u = u.cross(plane.normal).normalize();
         let v = plane.normal.cross(u).normalize();
 
-        let front_plane = Surface::new(-plane.normal, -plane.distance);
-        let back_plane = Surface::new(plane.normal, plane.distance + LARGE_VALUE);
+        // Create the six planes that define the cutting cuboid
         let planes = vec![
-            front_plane,                   // Cutting plane
-            back_plane,                    // Far side plane
-            Surface::new(u, LARGE_VALUE),  // Right plane
-            Surface::new(-u, LARGE_VALUE), // Left plane
-            Surface::new(v, LARGE_VALUE),  // Top plane
-            Surface::new(-v, LARGE_VALUE), // Bottom plane
+            cutting_plane,
+            Surface::new(plane.normal, plane.distance + LARGE_VALUE), // Back plane, far behind the cut
+            Surface::new(u, LARGE_VALUE), // Large plane in one direction
+            Surface::new(-u, LARGE_VALUE), // Large plane in the opposite direction
+            Surface::new(v, LARGE_VALUE), // Large plane in another direction
+            Surface::new(-v, LARGE_VALUE), // Large plane in the opposite direction
         ];
 
-        let cutting_cuboid = Brush::from_surfaces(planes);
+        // Create the cutting cuboid from the defined planes
+        let cutting_cuboid = Brush::from_surfaces(planes).to_hull();
+
+        // Intersect the original geometry with the inverted cutting cuboid
         self.subtract(&cutting_cuboid)
+    }
+
+    pub fn to_hull(&self) -> Self {
+        let mut unique_vertices = Vec::<Vertex>::new();
+        let mut deduped_polygons = Vec::new();
+
+        for polygon in &self.polygons {
+            let mut new_vertices = Vec::new();
+            for vertex in &polygon.vertices {
+                let mut found = false;
+
+                for &unique_vertex in &unique_vertices {
+                    if (unique_vertex.pos - vertex.pos).length_squared() < EPSILON * EPSILON {
+                        new_vertices.push(unique_vertex);
+
+                        found = true;
+                        break;
+                    }
+                }
+
+                if !found {
+                    unique_vertices.push(*vertex);
+                    new_vertices.push(*vertex);
+                }
+            }
+
+            deduped_polygons.push(Polygon {
+                vertices: new_vertices,
+                surface: polygon.surface.clone(),
+            });
+        }
+
+        Brush::from_polygons(deduped_polygons)
     }
 
     /// Returns the inverse of the CSG object.
@@ -135,11 +174,48 @@ impl Brush {
         csg
     }
 
-    /// Generates a list of vertices from a list of planes.
-    fn generate_vertices(planes: &[Surface]) -> Vec<DVec3> {
-        let mut vertices = Vec::new();
+    /// Generates vertices from a list of planes.
+    fn generate_polygons_from_surfaces(planes: &[Surface]) -> Vec<Polygon> {
+        let plane_vertex_map = Self::generate_vertices(planes);
+        let mut polygons = Vec::new();
 
+        for (plane, vertices) in plane_vertex_map {
+            if vertices.len() < 3 {
+                continue;
+            }
+
+            let mut polygon_vertices = vertices;
+
+            // Sort vertices to ensure consistent winding order
+            let center = polygon_vertices.iter().map(|v| v.pos).sum::<DVec3>()
+                / polygon_vertices.len() as f64;
+            polygon_vertices.sort_by(|a, b| {
+                let va = a.pos - center;
+                let vb = b.pos - center;
+                plane
+                    .normal
+                    .cross(va)
+                    .dot(vb)
+                    .partial_cmp(&0.0)
+                    .unwrap()
+                    .reverse()
+            });
+
+            if polygon_vertices.len() >= 3 {
+                polygons.push(Polygon {
+                    vertices: polygon_vertices,
+                    surface: plane,
+                });
+            }
+        }
+
+        polygons
+    }
+
+    /// Generates vertices from a list of planes, grouped by plane.
+    fn generate_vertices(planes: &[Surface]) -> HashMap<Surface, Vec<Vertex>> {
         let plane_count = planes.len();
+        let mut plane_vertex_map = HashMap::new();
 
         for i in 0..plane_count {
             for j in (i + 1)..plane_count {
@@ -147,16 +223,26 @@ impl Brush {
                     if let Some(point) =
                         Self::threeway_intersection(&planes[i], &planes[j], &planes[k])
                     {
-                        // ensure the point is inside all planes and is unique
+                        // Ensure the point is inside or on all planes
                         if planes
                             .iter()
                             .all(|p| p.normal.dot(point) <= p.distance + EPSILON)
                         {
-                            if !vertices
-                                .iter()
-                                .any(|v: &DVec3| (*v - point).length() < EPSILON)
-                            {
-                                vertices.push(point);
+                            // Add the point to each of the three intersecting planes
+                            for plane in [&planes[i], &planes[j], &planes[k]] {
+                                let vertices = plane_vertex_map
+                                    .entry(plane.clone())
+                                    .or_insert_with(Vec::new);
+
+                                // Ensure the point is unique for this plane
+                                if !vertices.iter().any(|v: &Vertex| {
+                                    (v.pos - point).length_squared() < EPSILON * EPSILON
+                                }) {
+                                    vertices.push(Vertex {
+                                        pos: point,
+                                        normal: plane.normal,
+                                    });
+                                }
                             }
                         }
                     }
@@ -164,10 +250,7 @@ impl Brush {
             }
         }
 
-        // remove duplicate vertices
-        vertices.dedup_by(|a, b| (*a - *b).length() < EPSILON);
-
-        vertices
+        plane_vertex_map
     }
 
     /// Finds the intersection point of three planes.
@@ -188,83 +271,6 @@ impl Brush {
             / denom;
 
         Some(p)
-    }
-
-    /// Triangulates a set of vertices based on a set of planes, creating a list of polygons.
-    fn triangulate_polygons(planes: &[Surface], vertices: &[DVec3]) -> Vec<Polygon> {
-        let mut polygons = Vec::new();
-
-        for plane in planes {
-            let mut polygon_vertices: Vec<Vertex> = vertices
-                .iter()
-                .filter(|&&v| (plane.normal.dot(v) - plane.distance).abs() < EPSILON)
-                .map(|&v| Vertex {
-                    pos: v,
-                    normal: plane.normal,
-                })
-                .collect();
-
-            if polygon_vertices.len() >= 3 {
-                // Find the centroid of the polygon for sorting purposes
-                let center = polygon_vertices.iter().map(|v| v.pos).sum::<DVec3>()
-                    / polygon_vertices.len() as f64;
-
-                // Sort vertices around the center of the polygon
-                polygon_vertices.sort_by(|a, b| {
-                    let va = a.pos - center;
-                    let vb = b.pos - center;
-
-                    // Project onto the plane with the smallest component in the normal vector
-                    let (angle_a, angle_b) = if plane.normal.z.abs() > plane.normal.x.abs()
-                        && plane.normal.z.abs() > plane.normal.y.abs()
-                    {
-                        // Project onto the XY plane
-                        (va.y.atan2(va.x), vb.y.atan2(vb.x))
-                    } else if plane.normal.x.abs() > plane.normal.y.abs() {
-                        // Project onto the YZ plane
-                        (va.z.atan2(va.y), vb.z.atan2(vb.y))
-                    } else {
-                        // Project onto the XZ plane
-                        (va.z.atan2(va.x), vb.z.atan2(vb.x))
-                    };
-
-                    angle_a
-                        .partial_cmp(&angle_b)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
-
-                // Triangulate the polygon
-                for i in 1..(polygon_vertices.len() - 1) {
-                    let v0 = polygon_vertices[0].pos;
-                    let v1 = polygon_vertices[i].pos;
-                    let v2 = polygon_vertices[i + 1].pos;
-
-                    // Check if the winding order is correct, if not, swap vertices
-                    let cross = (v1 - v0).cross(v2 - v0);
-                    let triangle_vertices = if cross.dot(plane.normal) < 0.0 {
-                        vec![
-                            polygon_vertices[0],
-                            polygon_vertices[i + 1],
-                            polygon_vertices[i],
-                        ]
-                    } else {
-                        vec![
-                            polygon_vertices[0],
-                            polygon_vertices[i],
-                            polygon_vertices[i + 1],
-                        ]
-                    };
-
-                    polygons.push(Polygon {
-                        vertices: triangle_vertices,
-                        surface: plane.clone(),
-                        shared: 0,
-                    });
-                }
-            }
-        }
-
-        polygons
     }
 }
 
@@ -405,7 +411,7 @@ mod tests {
         let dimensions = DVec3::new(1.0, 1.0, 1.0);
         let cube = Brush::cuboid(origin, dimensions);
 
-        // Therte should be 8 vertices in a cube
+        // There should be 8 vertices in a cube
         let expected_vertices = vec![
             DVec3::new(-0.5, -0.5, -0.5),
             DVec3::new(-0.5, -0.5, 0.5),
@@ -450,10 +456,10 @@ mod tests {
             result_vertices.len()
         );
 
-        // Check if the number of polygons is correct (12 triangles for a cube)
+        // Check if the number of polygons is correct (6 faces in a cube)
         assert_eq!(
             cube.polygons.len(),
-            12,
+            6,
             "Number of polygons doesn't match. Expected 12, got {}",
             cube.polygons.len()
         );

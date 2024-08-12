@@ -1,4 +1,6 @@
-use glam::{DVec2, DVec3, Mat2, Mat3, Vec2, Vec3};
+use glam::{DVec3, Vec2};
+use std::hash::Hash;
+use std::hash::Hasher;
 
 pub trait TPlane {
     const EPSILON: f64 = 1e-5;
@@ -85,10 +87,10 @@ pub trait TPlane {
                 }
 
                 if f.len() >= 3 {
-                    front.push(Polygon::new(f, polygon.shared));
+                    front.push(Polygon::new(f));
                 }
                 if b.len() >= 3 {
-                    back.push(Polygon::new(b, polygon.shared));
+                    back.push(Polygon::new(b));
                 }
             }
             _ => {}
@@ -129,6 +131,37 @@ pub struct Surface {
     pub texture_rotation: f32,
 }
 
+impl Hash for Surface {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let precision: f64 = 1e-6;
+
+        // Hash the components of the normal vector
+        ((self.normal.x * precision).round() as i64).hash(state);
+        ((self.normal.y * precision).round() as i64).hash(state);
+        ((self.normal.z * precision).round() as i64).hash(state);
+
+        // Hash the distance
+        ((self.distance * precision).round() as i64).hash(state);
+
+        // Hash the texture scale
+        ((self.texture_scale.x as f64 * precision).round() as i64).hash(state);
+        ((self.texture_scale.y as f64 * precision).round() as i64).hash(state);
+    }
+}
+
+impl PartialEq for Surface {
+    fn eq(&self, other: &Self) -> bool {
+        const EPSILON: f64 = 1e-6;
+
+        (self.normal.x - other.normal.x).abs() < EPSILON
+            && (self.normal.y - other.normal.y).abs() < EPSILON
+            && (self.normal.z - other.normal.z).abs() < EPSILON
+            && (self.distance - other.distance).abs() < EPSILON
+    }
+}
+
+impl Eq for Surface {}
+
 impl Surface {
     pub fn new(normal: DVec3, distance: f64) -> Self {
         Self {
@@ -161,6 +194,7 @@ impl Surface {
         )
     }
 
+    /// Computes the texture axes for the surface.
     fn compute_texture_axes(&self) -> (DVec3, DVec3) {
         let up = if self.normal.x.abs() < 0.9 {
             DVec3::X
@@ -203,23 +237,23 @@ pub struct Polygon {
     // Vertices of the polygon.
     pub vertices: Vec<Vertex>,
 
-    // Index of the shared data.
-    pub shared: i32,
-
     // Plane of the polygon.
     pub surface: Surface,
 }
 
 impl Polygon {
-    pub fn new(vertices: Vec<Vertex>, shared: i32) -> Self {
+    pub fn new(vertices: Vec<Vertex>) -> Self {
         if vertices.len() < 3 {
             panic!("Polygon must have at least 3 vertices");
         }
         let surface = Surface::from_points(&vertices[0].pos, &vertices[1].pos, &vertices[2].pos);
+        Self { vertices, surface }
+    }
+
+    pub fn from_plane(plane: &Surface, vertices: Vec<Vertex>) -> Self {
         Self {
             vertices,
-            shared,
-            surface,
+            surface: *plane,
         }
     }
 
@@ -257,6 +291,37 @@ impl Vertex {
         )
     }
 }
+
+impl Hash for Vertex {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let precision: f64 = 1e-6;
+
+        // Hash the components of the position vector
+        ((self.pos.x * precision).round() as i64).hash(state);
+        ((self.pos.y * precision).round() as i64).hash(state);
+        ((self.pos.z * precision).round() as i64).hash(state);
+
+        // Hash the components of the normal vector
+        ((self.normal.x * precision).round() as i64).hash(state);
+        ((self.normal.y * precision).round() as i64).hash(state);
+        ((self.normal.z * precision).round() as i64).hash(state);
+    }
+}
+
+impl PartialEq for Vertex {
+    fn eq(&self, other: &Self) -> bool {
+        const EPSILON: f64 = 1e-6;
+
+        (self.pos.x - other.pos.x).abs() < EPSILON
+            && (self.pos.y - other.pos.y).abs() < EPSILON
+            && (self.pos.z - other.pos.z).abs() < EPSILON
+            && (self.normal.x - other.normal.x).abs() < EPSILON
+            && (self.normal.y - other.normal.y).abs() < EPSILON
+            && (self.normal.z - other.normal.z).abs() < EPSILON
+    }
+}
+
+impl Eq for Vertex {}
 
 #[derive(Clone)]
 pub struct Triangle {
