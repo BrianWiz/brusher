@@ -9,6 +9,7 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
 ## features
 
 ![image](https://github.com/user-attachments/assets/e893433f-f732-4a21-be0d-e5bbe624a115)
+^ a cuboid subtracting another cuboid, then have a corner sliced off.
 
 - [x] union
     - [ ] handle maintaining materials per surface
