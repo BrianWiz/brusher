@@ -1,5 +1,5 @@
 # brusher
-Experimental engine agnostic 3D CSG library for game development. Started as a port of [csg.js](https://github.com/evanw/csg.js) to Rust.
+Experimental engine agnostic 3D CSG library for game development written in Rust. Started as a port of [csg.js](https://github.com/evanw/csg.js) to Rust.
 
 ## ultimate goal
 My hope is that it can essentially provide an API that can be used to create an editor like Trenchbroom, GTKRadiant, Hammer, etc by providing easy to use public methods for creating and manipulating 3D "brushes" (solids) that can be used to create levels for games.
