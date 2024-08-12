@@ -7,9 +7,15 @@ My hope is that it can essentially provide an API that can be used to create an 
 For things like curves, I'm considering adding [curvo by @mattatz](https://github.com/mattatz/curvo) as a dependency to provide a way to create curves like pipes & arches.
 
 ## features
+
+![image](https://github.com/user-attachments/assets/e893433f-f732-4a21-be0d-e5bbe624a115)
+
 - [x] union
+    - [ ] handle maintaining materials per surface
 - [x] intersect
+    - [ ] handle maintaining materials per surface 
 - [x] subtract
+    - [ ] handle maintaining materials per surface
 - [x] knife
 - [ ] extrude
 - [ ] bevel
@@ -17,7 +23,7 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
 - [x] construct `Brush` from `Vec<Polygons>`
 - [x] construct `Brush` from `Vec<Surface>`
     - allows you to define a convex solid by defining its surfaces (planes)
-- [ ] smooth normals
+- [ ] smooth normals with configurable angle tolerance
 
 ## example (Bevy)
 `cargo run --example basic`
