@@ -3,7 +3,7 @@ use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
-use brusher::brush::types::Plane;
+use brusher::brush::types::{Plane, Surface};
 use brusher::brush::Brush;
 use glam::DVec3;
 
@@ -18,6 +18,7 @@ fn main() {
 }
 
 fn setup(
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
@@ -48,17 +49,28 @@ fn setup(
         PanOrbitCamera::default(),
     ));
 
+    // Load the texture
+    let texture_handle: Handle<Image> = asset_server.load("proto.png");
+
+    // Cube subtracted from another cube and then has a corner cut off with a plane.
     let cube = Brush::cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(1.0, 1.0, 1.0));
     let cube2 = Brush::cuboid(DVec3::new(0.5, 0.5, 0.5), DVec3::new(1.0, 1.0, 1.0));
-    let final_solid = cube
-        .subtract(&cube2)
-        .knife(Plane::new(DVec3::new(1.0, 1.0, 1.0), 0.5));
+    let final_solid = cube.subtract(&cube2).knife(Plane {
+        normal: DVec3::new(1.0, 1.0, 1.0),
+        distance: 0.5,
+    });
 
     let mesh = csg_to_bevy_mesh(&final_solid);
 
+    // Create a material with the loaded texture
+    let material = materials.add(StandardMaterial {
+        base_color_texture: Some(texture_handle),
+        ..default()
+    });
+
     commands.spawn(PbrBundle {
         mesh: meshes.add(mesh),
-        material: materials.add(Color::srgb(0.5, 0.5, 0.5)),
+        material,
         transform: Transform::from_translation(Vec3::new(0.0, 0.5, 0.0)),
         ..default()
     });
@@ -68,10 +80,12 @@ pub fn csg_to_bevy_mesh(csg: &Brush) -> Mesh {
     let mut positions = Vec::new();
     let mut normals = Vec::new();
     let mut indices = Vec::new();
+    let mut uvs = Vec::new();
     let mut index_count = 0;
 
     for polygon in &csg.polygons {
         let start_index = index_count;
+
         for vertex in &polygon.vertices {
             positions.push([
                 vertex.pos.x as f32,
@@ -83,6 +97,10 @@ pub fn csg_to_bevy_mesh(csg: &Brush) -> Mesh {
                 vertex.normal.y as f32,
                 vertex.normal.z as f32,
             ]);
+
+            let uv = polygon.surface.compute_uv(vertex.pos);
+            uvs.push([uv.x as f32, uv.y as f32]);
+
             index_count += 1;
         }
 
@@ -105,6 +123,7 @@ pub fn csg_to_bevy_mesh(csg: &Brush) -> Mesh {
     );
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
     mesh.insert_indices(Indices::U32(indices));
 
     mesh
