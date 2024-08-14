@@ -8,8 +8,7 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
 
 ## features & todo
 
-![image](https://github.com/user-attachments/assets/e893433f-f732-4a21-be0d-e5bbe624a115)
-^ a cuboid subtracting another cuboid, then have a corner sliced off.
+https://github.com/user-attachments/assets/c79d244f-47bc-4c98-81f9-dfb46ed5fb86
 
 - [x] union
 - [x] intersect
