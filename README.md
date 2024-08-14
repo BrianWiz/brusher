@@ -12,38 +12,60 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
 ^ a cuboid subtracting another cuboid, then have a corner sliced off.
 
 - [x] union
-    - [ ] handle maintaining materials per surface
 - [x] intersect
-    - [ ] handle maintaining materials per surface 
 - [x] subtract
+- [x] knife (WIP)
     - [ ] handle maintaining materials per surface
-- [x] knife
 - [ ] serialization
 - [ ] extrude
 - [ ] bevel
     - technically already possible manually by using `knife` but just needs a helper function
-- [x] construct `Brush` from `Vec<Polygons>`
-- [x] construct `Brush` from `Vec<Surface>`
+- [x] construct `Brushlet` from `Vec<Polygons>`
+- [x] construct `Brushlet` from `Vec<Surface>`
     - allows you to define a convex solid by defining its surfaces (planes)
 - [ ] smooth normals with configurable angle tolerance
-- [ ] editor API
+- [ ] editor API (WIP)
 
 ## example (Bevy)
 `cargo run --example basic`
 
 ## usage
 ```rs
-// subtract a cube from another cube and then chop a corner off
-let cube = Brush::cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(1.0, 1.0, 1.0));
-let cube2 = Brush::cuboid(DVec3::new(0.5, 0.5, 0.5), DVec3::new(1.0, 1.0, 1.0));
-let final_solid = cube
-                    // subtract cube2 from cube, leaving an indent
-                    .subtract(&cube2)
-                    // slice off a corner
-                    .knife(Plane {
-                        normal: DVec3::new(1.0, 1.0, 1.0), // top right corner
-                        distance: 0.5, // distance from the origin
-                    });
+    // Create a brush
+    let mut brush = Brush::new();
+    brush.knives = vec![brusher::brush::Knife {
+        normal: DVec3::new(1.0, 1.0, 0.0),
+        distance_from_origin: 4.0,
+    }];
+
+    // Room 1
+    brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
+        origin: DVec3::new(0.0, 0.0, 0.0),
+        width: 8.0,
+        height: 4.0,
+        depth: 8.0,
+        material: 0,
+        operation: BrushletBooleanOp::Subtract,
+        knives: vec![brusher::brush::Knife {
+            normal: DVec3::new(-1.0, -1.0, -1.0),
+            distance_from_origin: 4.0,
+        }],
+        inverted: true,
+    }));
+
+    // Room 2
+    brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
+        origin: DVec3::new(4.0, 0.0, 4.0),
+        width: 8.0,
+        height: 4.0,
+        depth: 8.0,
+        material: 1,
+        operation: BrushletBooleanOp::Union,
+        knives: vec![],
+        inverted: false,
+    }));
+
+    let mesh_data = brush.to_mesh_data();
 ```
 
 ## special thanks
