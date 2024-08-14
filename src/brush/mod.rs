@@ -30,12 +30,14 @@ pub struct MeshData {
 #[derive(Debug, Clone)]
 pub struct Brush {
     brushlets: Vec<Brushlet>,
+    pub knives: Vec<Knife>,
 }
 
 impl Brush {
     pub fn new() -> Self {
         Self {
             brushlets: Vec::new(),
+            knives: Vec::new(),
         }
     }
 
@@ -83,6 +85,11 @@ impl Brush {
                 BrushletBooleanOp::Intersect => final_brushlet.intersect(other),
                 BrushletBooleanOp::Subtract => final_brushlet.subtract(other),
             };
+        }
+
+        // do the final global knife operations
+        for knife in &self.knives {
+            final_brushlet = final_brushlet.knife(*knife);
         }
 
         final_brushlet.to_mesh_data()

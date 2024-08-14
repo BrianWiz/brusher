@@ -11,7 +11,7 @@ use bevy::render::RenderPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 // use brusher::brush::types::{Plane, Surface, SurfaceType};
-use brusher::brush::{Brush, Brushlet, BrushletBooleanOp, MeshData};
+use brusher::brush::{Brush, Brushlet, BrushletBooleanOp, Knife, MeshData};
 use glam::{DVec3, Vec2 as GlamVec2};
 
 fn main() {
@@ -96,6 +96,12 @@ fn setup(
 
     // Create a brush
     let mut brush = Brush::new();
+    brush.knives = vec![brusher::brush::Knife {
+        normal: DVec3::new(1.0, 1.0, 0.0),
+        distance_from_origin: 4.0,
+    }];
+
+    // Room 1
     brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
         origin: DVec3::new(0.0, 0.0, 0.0),
         width: 8.0,
@@ -110,6 +116,7 @@ fn setup(
         inverted: true,
     }));
 
+    // Room 2
     brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
         origin: DVec3::new(4.0, 0.0, 4.0),
         width: 8.0,
@@ -122,9 +129,14 @@ fn setup(
     }));
 
     let mesh_data = brush.to_mesh_data();
-    let meshes_with_materials = csg_to_bevy_meshes(&mesh_data);
+    let mut meshes_with_materials = csg_to_bevy_meshes(&mesh_data);
+
+    let mut pillar_brush = Brush::new();
+    pillar_brush.add(create_beveled_pillar(DVec3::new(2.0, 0.0, 2.0)));
 
     // Spawn each mesh with the appropriate material
+    let mesh_data = pillar_brush.to_mesh_data();
+    meshes_with_materials.extend(csg_to_bevy_meshes(&mesh_data));
     for (mesh, material_index) in meshes_with_materials {
         let material = match material_index {
             0 => material1.clone(),
@@ -139,6 +151,47 @@ fn setup(
             ..default()
         });
     }
+}
+
+fn create_beveled_pillar(origin: DVec3) -> Brushlet {
+    let pillar_width = 1.0;
+    let pillar_height = 4.0;
+    let pillar_depth = 1.0;
+    let bevel_size = 0.1;
+    let sqrt2 = 2.0_f64.sqrt();
+    let base_distance = (pillar_width / 2.0 + pillar_depth / 2.0 - bevel_size) / sqrt2;
+
+    Brushlet::cuboid(brusher::brush::Cuboid {
+        origin,
+        width: pillar_width,
+        height: pillar_height,
+        depth: pillar_depth,
+        material: 1,
+        operation: BrushletBooleanOp::Union,
+        knives: vec![
+            // Front-right edge
+            Knife {
+                normal: DVec3::new(1.0, 0.0, 1.0).normalize(),
+                distance_from_origin: base_distance + (origin.x + origin.z) / sqrt2,
+            },
+            // Front-left edge
+            Knife {
+                normal: DVec3::new(-1.0, 0.0, 1.0).normalize(),
+                distance_from_origin: base_distance + (-origin.x + origin.z) / sqrt2,
+            },
+            // Back-right edge
+            Knife {
+                normal: DVec3::new(1.0, 0.0, -1.0).normalize(),
+                distance_from_origin: base_distance + (origin.x - origin.z) / sqrt2,
+            },
+            // Back-left edge
+            Knife {
+                normal: DVec3::new(-1.0, 0.0, -1.0).normalize(),
+                distance_from_origin: base_distance + (-origin.x - origin.z) / sqrt2,
+            },
+        ],
+        inverted: false,
+    })
 }
 
 pub fn csg_to_bevy_meshes(mesh_data: &MeshData) -> Vec<(Mesh, usize)> {
