@@ -12,7 +12,7 @@ use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 // use brusher::brush::types::{Plane, Surface, SurfaceType};
 use brusher::brush::{Brush, Brushlet, BrushletBooleanOp, Knife, MeshData};
-use glam::{DVec3, Vec2 as GlamVec2};
+use glam::DVec3;
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
