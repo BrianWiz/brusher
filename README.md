@@ -38,7 +38,7 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
         distance_from_origin: 4.0,
     }];
 
-    // Room 1
+    // Room 1 - Add a Brushlet to the Brush
     brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
         origin: DVec3::new(0.0, 0.0, 0.0),
         width: 8.0,
@@ -53,7 +53,7 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
         inverted: true,
     }));
 
-    // Room 2
+    // Room 2 - Add a Brushlet to the Brush
     brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
         origin: DVec3::new(4.0, 0.0, 4.0),
         width: 8.0,
