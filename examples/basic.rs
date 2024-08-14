@@ -1,20 +1,45 @@
+use bevy::color::palettes::css::WHITE;
+use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
+use bevy::render::settings::{RenderCreation, WgpuFeatures, WgpuSettings};
 use bevy::render::texture::{
     ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
 };
+use bevy::render::RenderPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
-use brusher::brush::types::{Plane, Surface, SurfaceType};
-use brusher::brush::Brush;
+// use brusher::brush::types::{Plane, Surface, SurfaceType};
+use brusher::brush::{Brush, Brushlet, BrushletBooleanOp, MeshData};
 use glam::{DVec3, Vec2 as GlamVec2};
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
 
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins((
+            DefaultPlugins.set(RenderPlugin {
+                render_creation: RenderCreation::Automatic(WgpuSettings {
+                    // WARN this is a native only feature. It will not work with webgl or webgpu
+                    features: WgpuFeatures::POLYGON_MODE_LINE,
+                    ..default()
+                }),
+                ..default()
+            }),
+            // You need to add this plugin to enable wireframe rendering
+            WireframePlugin,
+        ))
+        // Wireframes can be configured with this resource. This can be changed at runtime.
+        .insert_resource(WireframeConfig {
+            // The global wireframe config enables drawing of wireframes on every mesh,
+            // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
+            // regardless of the global configuration.
+            global: true,
+            // Controls the default color of all wireframes. Used as the default color for global wireframes.
+            // Can be changed per mesh using the `WireframeColor` component.
+            default_color: WHITE.into(),
+        })
         .add_plugins(PanOrbitCameraPlugin)
         .add_systems(Startup, setup)
         .run();
@@ -26,20 +51,13 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
 ) {
-    // Ground
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Plane3d::default().mesh().size(5.0, 5.0)),
-        material: materials.add(Color::srgb(0.3, 0.5, 0.3)),
-        ..default()
-    });
-
     // Light
     commands.spawn(PointLightBundle {
         point_light: PointLight {
             shadows_enabled: true,
             ..default()
         },
-        transform: Transform::from_xyz(4.0, 8.0, 4.0),
+        transform: Transform::from_xyz(0.0, 0.0, 0.0),
         ..default()
     });
 
@@ -76,15 +94,35 @@ fn setup(
         ..default()
     });
 
-    // CSG operation
-    let cube = cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(1.0, 1.0, 1.0));
-    let cube2 = cuboid(DVec3::new(0.5, 0.5, 0.5), DVec3::new(1.0, 1.0, 1.0));
-    let final_solid = cube.subtract(&cube2).knife(Plane {
-        normal: DVec3::new(1.0, 1.0, 1.0),
-        distance: 0.5,
-    });
+    // Create a brush
+    let mut brush = Brush::new();
+    brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
+        origin: DVec3::new(0.0, 0.0, 0.0),
+        width: 8.0,
+        height: 4.0,
+        depth: 8.0,
+        material: 0,
+        operation: BrushletBooleanOp::Subtract,
+        knives: vec![brusher::brush::Knife {
+            normal: DVec3::new(-1.0, -1.0, -1.0),
+            distance_from_origin: 4.0,
+        }],
+        inverted: true,
+    }));
 
-    let meshes_with_materials = csg_to_bevy_meshes(&final_solid);
+    brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
+        origin: DVec3::new(4.0, 0.0, 4.0),
+        width: 8.0,
+        height: 4.0,
+        depth: 8.0,
+        material: 1,
+        operation: BrushletBooleanOp::Union,
+        knives: vec![],
+        inverted: false,
+    }));
+
+    let mesh_data = brush.to_mesh_data();
+    let meshes_with_materials = csg_to_bevy_meshes(&mesh_data);
 
     // Spawn each mesh with the appropriate material
     for (mesh, material_index) in meshes_with_materials {
@@ -97,84 +135,16 @@ fn setup(
         commands.spawn(PbrBundle {
             mesh: meshes.add(mesh),
             material,
-            transform: Transform::from_translation(Vec3::new(0.0, 0.5, 0.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
             ..default()
         });
     }
 }
 
-pub fn cuboid(origin: DVec3, dimensions: DVec3) -> Brush {
-    let half_dims = dimensions * 0.5;
-    let planes = vec![
-        // Right
-        Surface {
-            normal: DVec3::new(1.0, 0.0, 0.0),
-            distance: half_dims.x + origin.x,
-            texture_offset: GlamVec2::new(0.0, 0.0),
-            texture_scale: GlamVec2::new(1.0, 1.0),
-            texture_rotation: 0.0,
-            material: Some(0),
-            surface_type: SurfaceType::Concrete(0),
-        },
-        // Left
-        Surface {
-            normal: DVec3::new(-1.0, 0.0, 0.0),
-            distance: half_dims.x - origin.x,
-            texture_offset: GlamVec2::new(0.0, 0.0),
-            texture_scale: GlamVec2::new(1.0, 1.0),
-            texture_rotation: 0.0,
-            material: Some(1),
-            surface_type: SurfaceType::Concrete(0),
-        },
-        // Top
-        Surface {
-            normal: DVec3::new(0.0, 1.0, 0.0),
-            distance: half_dims.y + origin.y,
-            texture_offset: GlamVec2::new(0.0, 0.0),
-            texture_scale: GlamVec2::new(1.0, 1.0),
-            texture_rotation: 0.0,
-            material: Some(0),
-            surface_type: SurfaceType::Concrete(0),
-        },
-        // Bottom
-        Surface {
-            normal: DVec3::new(0.0, -1.0, 0.0),
-            distance: half_dims.y - origin.y,
-            texture_offset: GlamVec2::new(0.0, 0.0),
-            texture_scale: GlamVec2::new(1.0, 1.0),
-            texture_rotation: 0.0,
-            material: Some(1),
-            surface_type: SurfaceType::Concrete(0),
-        },
-        // Front
-        Surface {
-            normal: DVec3::new(0.0, 0.0, 1.0),
-            distance: half_dims.z + origin.z,
-            texture_offset: GlamVec2::new(0.0, 0.0),
-            texture_scale: GlamVec2::new(1.0, 1.0),
-            texture_rotation: 0.0,
-            material: Some(0),
-            surface_type: SurfaceType::Concrete(0),
-        },
-        // Back
-        Surface {
-            normal: DVec3::new(0.0, 0.0, -1.0),
-            distance: half_dims.z - origin.z,
-            texture_offset: GlamVec2::new(0.0, 0.0),
-            texture_scale: GlamVec2::new(1.0, 1.0),
-            texture_rotation: 0.0,
-            material: Some(1),
-            surface_type: SurfaceType::Concrete(0),
-        },
-    ];
-
-    Brush::from_surfaces(planes)
-}
-
-pub fn csg_to_bevy_meshes(csg: &Brush) -> Vec<(Mesh, usize)> {
+pub fn csg_to_bevy_meshes(mesh_data: &MeshData) -> Vec<(Mesh, usize)> {
     let mut meshes_with_materials: Vec<(Mesh, usize)> = vec![];
 
-    for polygon in &csg.polygons {
+    for polygon in &mesh_data.polygons {
         let mut positions = vec![];
         let mut normals = vec![];
         let mut uvs = vec![];
@@ -195,8 +165,8 @@ pub fn csg_to_bevy_meshes(csg: &Brush) -> Vec<(Mesh, usize)> {
                 vertex.normal.z as f32,
             ]);
 
-            let uv = polygon.surface.compute_texture_coordinates(vertex.pos);
-            uvs.push([uv.x, uv.y]);
+            let uv = polygon.surface.compute_uv(vertex.pos);
+            uvs.push([uv.x as f32, uv.y as f32]);
 
             index_count += 1;
         }
@@ -221,7 +191,7 @@ pub fn csg_to_bevy_meshes(csg: &Brush) -> Vec<(Mesh, usize)> {
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
         mesh.insert_indices(Indices::U32(indices));
 
-        meshes_with_materials.push((mesh, polygon.surface.material.unwrap_or(0)));
+        meshes_with_materials.push((mesh, polygon.material));
     }
 
     meshes_with_materials
