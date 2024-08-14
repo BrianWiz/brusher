@@ -8,8 +8,7 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
 
 ## features & todo
 
-![image](https://github.com/user-attachments/assets/e893433f-f732-4a21-be0d-e5bbe624a115)
-^ a cuboid subtracting another cuboid, then have a corner sliced off.
+https://github.com/user-attachments/assets/c79d244f-47bc-4c98-81f9-dfb46ed5fb86
 
 - [x] union
 - [x] intersect
@@ -38,7 +37,7 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
         distance_from_origin: 4.0,
     }];
 
-    // Room 1
+    // Room 1 - Add a Brushlet to the Brush
     brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
         origin: DVec3::new(0.0, 0.0, 0.0),
         width: 8.0,
@@ -53,7 +52,7 @@ For things like curves, I'm considering adding [curvo by @mattatz](https://githu
         inverted: true,
     }));
 
-    // Room 2
+    // Room 2 - Add a Brushlet to the Brush
     brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
         origin: DVec3::new(4.0, 0.0, 4.0),
         width: 8.0,
