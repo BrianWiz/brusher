@@ -6,7 +6,7 @@ use crate::{
     surface::Surface,
 };
 
-use super::{node::Node, BooleanOp, Knife, MeshData};
+use super::{node::Node, operations::Knife, BooleanOp, MeshData};
 
 #[derive(Debug, Clone)]
 pub struct BrushletSettings {

@@ -11,7 +11,7 @@ use bevy::render::RenderPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 use brusher::brush::brushlet::{Brushlet, BrushletSettings};
-use brusher::brush::{BooleanOp, Brush, Knife, MeshData};
+use brusher::brush::{operations::Knife, BooleanOp, Brush, MeshData};
 use brusher::primitives::CuboidMaterialIndices;
 use glam::DVec3;
 
@@ -97,7 +97,7 @@ fn setup(
 
     // Create a brush
     let mut brush = Brush::new();
-    brush.knives = vec![brusher::brush::Knife {
+    brush.knives = vec![Knife {
         normal: DVec3::new(1.0, 1.0, 0.0),
         distance_from_origin: 4.0,
     }];
@@ -120,7 +120,7 @@ fn setup(
         },
         BrushletSettings {
             operation: BooleanOp::Subtract,
-            knives: vec![brusher::brush::Knife {
+            knives: vec![Knife {
                 normal: DVec3::new(-1.0, -1.0, -1.0),
                 distance_from_origin: 4.0,
             }],
