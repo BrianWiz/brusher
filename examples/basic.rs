@@ -232,43 +232,10 @@ pub fn csg_to_bevy_meshes(mesh_data: &MeshData) -> Vec<(Mesh, usize)> {
     let mut meshes_with_materials: Vec<(Mesh, usize)> = vec![];
 
     for polygon in &mesh_data.polygons {
-        let mut positions = vec![];
-        let mut normals = vec![];
-        let mut uvs = vec![];
-        let mut indices = vec![];
-        let mut index_count = 0;
-
-        let start_index = index_count;
-
-        for vertex in &polygon.vertices {
-            positions.push([
-                vertex.pos.x as f32,
-                vertex.pos.y as f32,
-                vertex.pos.z as f32,
-            ]);
-            normals.push([
-                vertex.normal.x as f32,
-                vertex.normal.y as f32,
-                vertex.normal.z as f32,
-            ]);
-
-            let uv = polygon.surface.compute_uv(vertex.pos);
-            uvs.push([uv.x as f32, uv.y as f32]);
-
-            index_count += 1;
-        }
-
-        if polygon.vertices.len() > 3 {
-            for i in 1..polygon.vertices.len() - 1 {
-                indices.push(start_index as u32);
-                indices.push((start_index + i) as u32);
-                indices.push((start_index + i + 1) as u32);
-            }
-        } else {
-            for i in 0..polygon.vertices.len() {
-                indices.push((start_index + i) as u32);
-            }
-        }
+        let positions = polygon.positions_32();
+        let normals = polygon.normals_32();
+        let uvs = polygon.uvs();
+        let indices = polygon.indices();
         let mut mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::default(),
@@ -277,7 +244,6 @@ pub fn csg_to_bevy_meshes(mesh_data: &MeshData) -> Vec<(Mesh, usize)> {
         mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
         mesh.insert_indices(Indices::U32(indices));
-
         meshes_with_materials.push((mesh, polygon.material));
     }
 

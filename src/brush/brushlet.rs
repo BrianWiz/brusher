@@ -85,7 +85,7 @@ impl Brushlet {
         let mut final_brushlet = self.clone();
 
         for knife in &self.settings.knives {
-            final_brushlet = final_brushlet.knife(*knife);
+            final_brushlet = knife.perform(&final_brushlet);
         }
 
         if self.settings.inverted {
@@ -95,39 +95,6 @@ impl Brushlet {
         MeshData {
             polygons: final_brushlet.polygons,
         }
-    }
-
-    pub(crate) fn knife(&self, plane: Knife) -> Self {
-        // Define a large value to ensure the cuboid encompasses the entire geometry
-        const LARGE_VALUE: f64 = 1e5;
-
-        // Create the primary cutting plane
-        let cutting_plane = Surface::new(-plane.normal, -plane.distance_from_origin);
-
-        // Create two orthogonal vectors to the plane normal
-        let mut u = if plane.normal.x.abs() > plane.normal.y.abs() {
-            DVec3::new(0.0, 1.0, 0.0)
-        } else {
-            DVec3::new(1.0, 0.0, 0.0)
-        };
-        u = u.cross(plane.normal).normalize();
-        let v = plane.normal.cross(u).normalize();
-
-        // Create the six planes that define the cutting cuboid
-        let planes = vec![
-            cutting_plane,
-            Surface::new(plane.normal, plane.distance_from_origin + LARGE_VALUE), // Back plane, far behind the cut
-            Surface::new(u, LARGE_VALUE), // Large plane in one direction
-            Surface::new(-u, LARGE_VALUE), // Large plane in the opposite direction
-            Surface::new(v, LARGE_VALUE), // Large plane in another direction
-            Surface::new(-v, LARGE_VALUE), // Large plane in the opposite direction
-        ];
-
-        // Create the cutting cuboid from the defined planes
-        let cutting_cuboid = Brushlet::from_surfaces(planes, self.settings.clone());
-
-        // Intersect the original geometry with the inverted cutting cuboid
-        self.subtract(&cutting_cuboid)
     }
 
     pub(crate) fn inverse(&self) -> Self {
