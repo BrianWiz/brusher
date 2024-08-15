@@ -10,8 +10,9 @@ use bevy::render::texture::{
 use bevy::render::RenderPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
-// use brusher::brush::types::{Plane, Surface, SurfaceType};
-use brusher::brush::{Brush, Brushlet, BrushletBooleanOp, Knife, MeshData};
+use brusher::brush::brushlet::{Brushlet, BrushletSettings};
+use brusher::brush::{BooleanOp, Brush, Knife, MeshData};
+use brusher::primitives::CuboidMaterialIndices;
 use glam::DVec3;
 
 fn main() {
@@ -102,31 +103,53 @@ fn setup(
     }];
 
     // Room 1
-    brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
-        origin: DVec3::new(0.0, 0.0, 0.0),
-        width: 8.0,
-        height: 4.0,
-        depth: 8.0,
-        material: 0,
-        operation: BrushletBooleanOp::Subtract,
-        knives: vec![brusher::brush::Knife {
-            normal: DVec3::new(-1.0, -1.0, -1.0),
-            distance_from_origin: 4.0,
-        }],
-        inverted: true,
-    }));
+    brush.add(Brushlet::from_cuboid(
+        brusher::primitives::Cuboid {
+            origin: DVec3::new(0.0, 0.0, 0.0),
+            width: 8.0,
+            height: 4.0,
+            depth: 8.0,
+            material_indices: CuboidMaterialIndices {
+                front: 0,
+                back: 0,
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+            },
+        },
+        BrushletSettings {
+            operation: BooleanOp::Subtract,
+            knives: vec![brusher::brush::Knife {
+                normal: DVec3::new(-1.0, -1.0, -1.0),
+                distance_from_origin: 4.0,
+            }],
+            inverted: true,
+        },
+    ));
 
     // Room 2
-    brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
-        origin: DVec3::new(4.0, 0.0, 4.0),
-        width: 8.0,
-        height: 4.0,
-        depth: 8.0,
-        material: 1,
-        operation: BrushletBooleanOp::Union,
-        knives: vec![],
-        inverted: false,
-    }));
+    brush.add(Brushlet::from_cuboid(
+        brusher::primitives::Cuboid {
+            origin: DVec3::new(4.0, 0.0, 4.0),
+            width: 8.0,
+            height: 4.0,
+            depth: 8.0,
+            material_indices: CuboidMaterialIndices {
+                front: 1,
+                back: 1,
+                left: 1,
+                right: 1,
+                top: 1,
+                bottom: 1,
+            },
+        },
+        BrushletSettings {
+            operation: BooleanOp::Union,
+            knives: vec![],
+            inverted: false,
+        },
+    ));
 
     let mesh_data = brush.to_mesh_data();
     let mut meshes_with_materials = csg_to_bevy_meshes(&mesh_data);
@@ -161,37 +184,48 @@ fn create_beveled_pillar(origin: DVec3) -> Brushlet {
     let sqrt2 = 2.0_f64.sqrt();
     let base_distance = (pillar_width / 2.0 + pillar_depth / 2.0 - bevel_size) / sqrt2;
 
-    Brushlet::cuboid(brusher::brush::Cuboid {
-        origin,
-        width: pillar_width,
-        height: pillar_height,
-        depth: pillar_depth,
-        material: 1,
-        operation: BrushletBooleanOp::Union,
-        knives: vec![
-            // Front-right edge
-            Knife {
-                normal: DVec3::new(1.0, 0.0, 1.0).normalize(),
-                distance_from_origin: base_distance + (origin.x + origin.z) / sqrt2,
+    Brushlet::from_cuboid(
+        brusher::primitives::Cuboid {
+            origin,
+            width: pillar_width,
+            height: pillar_height,
+            depth: pillar_depth,
+            material_indices: CuboidMaterialIndices {
+                front: 1,
+                back: 1,
+                left: 1,
+                right: 1,
+                top: 1,
+                bottom: 1,
             },
-            // Front-left edge
-            Knife {
-                normal: DVec3::new(-1.0, 0.0, 1.0).normalize(),
-                distance_from_origin: base_distance + (-origin.x + origin.z) / sqrt2,
-            },
-            // Back-right edge
-            Knife {
-                normal: DVec3::new(1.0, 0.0, -1.0).normalize(),
-                distance_from_origin: base_distance + (origin.x - origin.z) / sqrt2,
-            },
-            // Back-left edge
-            Knife {
-                normal: DVec3::new(-1.0, 0.0, -1.0).normalize(),
-                distance_from_origin: base_distance + (-origin.x - origin.z) / sqrt2,
-            },
-        ],
-        inverted: false,
-    })
+        },
+        BrushletSettings {
+            operation: BooleanOp::Union,
+            knives: vec![
+                // Front-right edge
+                Knife {
+                    normal: DVec3::new(1.0, 0.0, 1.0).normalize(),
+                    distance_from_origin: base_distance + (origin.x + origin.z) / sqrt2,
+                },
+                // Front-left edge
+                Knife {
+                    normal: DVec3::new(-1.0, 0.0, 1.0).normalize(),
+                    distance_from_origin: base_distance + (-origin.x + origin.z) / sqrt2,
+                },
+                // Back-right edge
+                Knife {
+                    normal: DVec3::new(1.0, 0.0, -1.0).normalize(),
+                    distance_from_origin: base_distance + (origin.x - origin.z) / sqrt2,
+                },
+                // Back-left edge
+                Knife {
+                    normal: DVec3::new(-1.0, 0.0, -1.0).normalize(),
+                    distance_from_origin: base_distance + (-origin.x - origin.z) / sqrt2,
+                },
+            ],
+            inverted: false,
+        },
+    )
 }
 
 pub fn csg_to_bevy_meshes(mesh_data: &MeshData) -> Vec<(Mesh, usize)> {

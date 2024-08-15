@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use glam::DVec3;
 
-use super::{Polygon, Surface, Vertex, EPSILON};
+use super::{
+    polygon::{Polygon, Vertex},
+    surface::Surface,
+};
 
 /// Generates vertices from a list of planes.
 pub fn generate_polygons_from_surfaces(planes: &[Surface]) -> Vec<Polygon> {
@@ -55,7 +58,7 @@ fn generate_vertices(planes: &[Surface]) -> HashMap<Surface, Vec<Vertex>> {
                     // Ensure the point is inside or on all planes
                     if planes
                         .iter()
-                        .all(|p| p.normal.dot(point) <= p.distance_from_origin + EPSILON)
+                        .all(|p| p.normal.dot(point) <= p.distance_from_origin + Surface::EPSILON)
                     {
                         // Add the point to each of the three intersecting planes
                         for plane in [&planes[i], &planes[j], &planes[k]] {
@@ -65,7 +68,8 @@ fn generate_vertices(planes: &[Surface]) -> HashMap<Surface, Vec<Vertex>> {
 
                             // Ensure the point is unique for this plane
                             if !vertices.iter().any(|v: &Vertex| {
-                                (v.pos - point).length_squared() < EPSILON * EPSILON
+                                (v.pos - point).length_squared()
+                                    < Surface::EPSILON * Surface::EPSILON
                             }) {
                                 vertices.push(Vertex {
                                     pos: point,
@@ -90,7 +94,7 @@ fn threeway_intersection(p1: &Surface, p2: &Surface, p3: &Surface) -> Option<DVe
 
     let denom = n1.dot(n2.cross(*n3));
 
-    if denom.abs() < EPSILON {
+    if denom.abs() < Surface::EPSILON {
         return None;
     }
 
