@@ -32,7 +32,7 @@ https://github.com/user-attachments/assets/c79d244f-47bc-4c98-81f9-dfb46ed5fb86
 ```rs
     use brusher::prelude::*;
 
-    // Helper enum for material indices
+    // Helper enum to map materials to indices
     enum MyMaterials {
         ProtoGrey = 0,
         ProtoGreen = 1,
@@ -113,10 +113,21 @@ https://github.com/user-attachments/assets/c79d244f-47bc-4c98-81f9-dfb46ed5fb86
 ### construct meshes from a brush
 This example uses bevy, but you should be able to adapt it to any engine that supports meshes.
 ```rs
+
+    // Helper enum to map materials to indices
     enum MyMaterials {
         ProtoGrey = 0,
         ProtoGreen = 1,
     }
+
+    impl From<MyMaterials> for usize {
+        fn from(material: MyMaterials) -> usize {
+            material as usize
+        }
+    }
+
+    // Create a brush (see above example)
+    // ...
 
     // Define some materials
     let material_proto_grey = materials.add(Color::rgb(0.5, 0.5, 0.5).into());

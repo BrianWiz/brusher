@@ -9,6 +9,7 @@ use glam::DVec3;
 
 use brusher::prelude::*;
 
+// Helper enum to map materials to indices
 enum MyMaterials {
     ProtoGrey = 0,
     ProtoGreen = 1,
