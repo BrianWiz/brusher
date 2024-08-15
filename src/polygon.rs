@@ -5,16 +5,21 @@ use super::surface::Surface;
 #[derive(Debug, Clone)]
 pub struct Polygon {
     pub vertices: Vec<Vertex>,
-    pub material: usize,
+    pub material_index: usize,
     pub surface: Surface,
 }
 
 impl Polygon {
-    pub fn new(vertices: Vec<Vertex>, shared: usize) -> Self {
-        let plane = Surface::from_points(vertices[0].pos, vertices[1].pos, vertices[2].pos);
+    pub fn new(vertices: Vec<Vertex>, material_index: usize) -> Self {
+        let plane = Surface::from_points(
+            vertices[0].pos,
+            vertices[1].pos,
+            vertices[2].pos,
+            material_index,
+        );
         Self {
             vertices,
-            material: shared,
+            material_index,
             surface: plane,
         }
     }

@@ -97,10 +97,6 @@ fn setup(
 
     // Create a brush
     let mut brush = Brush::new();
-    brush.knives = vec![Knife {
-        normal: DVec3::new(1.0, 1.0, 0.0),
-        distance_from_origin: 4.0,
-    }];
 
     // Room 1
     brush.add(Brushlet::from_cuboid(
@@ -120,9 +116,11 @@ fn setup(
         },
         BrushletSettings {
             operation: BooleanOp::Subtract,
+            // Cut the brushlet with a knife
             knives: vec![Knife {
                 normal: DVec3::new(-1.0, -1.0, -1.0),
                 distance_from_origin: 4.0,
+                material_index: 0,
             }],
             inverted: true,
         },
@@ -150,6 +148,13 @@ fn setup(
             inverted: false,
         },
     ));
+
+    // Cut the entire brush with a knife
+    brush.knives = vec![Knife {
+        normal: DVec3::new(1.0, 1.0, 0.0),
+        distance_from_origin: 4.0,
+        material_index: 0,
+    }];
 
     let mesh_data = brush.to_mesh_data();
     let mut meshes_with_materials = csg_to_bevy_meshes(&mesh_data);
@@ -206,21 +211,25 @@ fn create_beveled_pillar(origin: DVec3) -> Brushlet {
                 Knife {
                     normal: DVec3::new(1.0, 0.0, 1.0).normalize(),
                     distance_from_origin: base_distance + (origin.x + origin.z) / sqrt2,
+                    material_index: 1,
                 },
                 // Front-left edge
                 Knife {
                     normal: DVec3::new(-1.0, 0.0, 1.0).normalize(),
                     distance_from_origin: base_distance + (-origin.x + origin.z) / sqrt2,
+                    material_index: 1,
                 },
                 // Back-right edge
                 Knife {
                     normal: DVec3::new(1.0, 0.0, -1.0).normalize(),
                     distance_from_origin: base_distance + (origin.x - origin.z) / sqrt2,
+                    material_index: 1,
                 },
                 // Back-left edge
                 Knife {
                     normal: DVec3::new(-1.0, 0.0, -1.0).normalize(),
                     distance_from_origin: base_distance + (-origin.x - origin.z) / sqrt2,
+                    material_index: 1,
                 },
             ],
             inverted: false,
@@ -244,7 +253,7 @@ pub fn csg_to_bevy_meshes(mesh_data: &MeshData) -> Vec<(Mesh, usize)> {
         mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
         mesh.insert_indices(Indices::U32(indices));
-        meshes_with_materials.push((mesh, polygon.material));
+        meshes_with_materials.push((mesh, polygon.material_index));
     }
 
     meshes_with_materials

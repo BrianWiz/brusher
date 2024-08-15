@@ -14,6 +14,7 @@ use crate::surface::Surface;
 pub struct Knife {
     pub normal: DVec3,
     pub distance_from_origin: f64,
+    pub material_index: usize,
 }
 
 impl Knife {
@@ -22,7 +23,11 @@ impl Knife {
         const LARGE_VALUE: f64 = 1e5;
 
         // Create the primary cutting plane
-        let cutting_plane = Surface::new(-self.normal, -self.distance_from_origin);
+        let cutting_plane = Surface::new(
+            -self.normal,
+            -self.distance_from_origin,
+            self.material_index,
+        );
 
         // Create two orthogonal vectors to the plane normal
         let mut u = if self.normal.x.abs() > self.normal.y.abs() {
@@ -36,11 +41,15 @@ impl Knife {
         // Create the six planes that define the cutting cuboid
         let planes = vec![
             cutting_plane,
-            Surface::new(self.normal, self.distance_from_origin + LARGE_VALUE), // Back plane, far behind the cut
-            Surface::new(u, LARGE_VALUE), // Large plane in one direction
-            Surface::new(-u, LARGE_VALUE), // Large plane in the opposite direction
-            Surface::new(v, LARGE_VALUE), // Large plane in another direction
-            Surface::new(-v, LARGE_VALUE), // Large plane in the opposite direction
+            Surface::new(
+                self.normal,
+                self.distance_from_origin + LARGE_VALUE,
+                self.material_index,
+            ), // Back plane, far behind the cut
+            Surface::new(u, LARGE_VALUE, self.material_index), // Large plane in one direction
+            Surface::new(-u, LARGE_VALUE, self.material_index), // Large plane in the opposite direction
+            Surface::new(v, LARGE_VALUE, self.material_index),  // Large plane in another direction
+            Surface::new(-v, LARGE_VALUE, self.material_index), // Large plane in the opposite direction
         ];
 
         // Create the cutting cuboid from the defined planes

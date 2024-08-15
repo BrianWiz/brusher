@@ -48,6 +48,7 @@ impl BitOr for PolygonType {
 pub struct Surface {
     pub normal: DVec3,
     pub distance_from_origin: f64,
+    pub material_index: usize,
 }
 
 impl Hash for Surface {
@@ -86,16 +87,17 @@ impl Surface {
         Self::quantize(self.distance_from_origin)
     }
 
-    pub fn new(normal: DVec3, w: f64) -> Self {
+    pub fn new(normal: DVec3, distance_from_origin: f64, material_index: usize) -> Self {
         Self {
             normal,
-            distance_from_origin: w,
+            distance_from_origin,
+            material_index,
         }
     }
 
-    pub fn from_points(a: DVec3, b: DVec3, c: DVec3) -> Self {
+    pub fn from_points(a: DVec3, b: DVec3, c: DVec3, material_index: usize) -> Self {
         let normal = (b - a).cross(c - a).normalize();
-        Self::new(normal, normal.dot(a))
+        Self::new(normal, normal.dot(a), material_index)
     }
 
     pub fn flip(&mut self) {
@@ -166,10 +168,10 @@ impl Surface {
                     }
                 }
                 if f.len() >= 3 {
-                    front.push(Polygon::new(f, polygon.material));
+                    front.push(Polygon::new(f, polygon.material_index));
                 }
                 if b.len() >= 3 {
-                    back.push(Polygon::new(b, polygon.material));
+                    back.push(Polygon::new(b, polygon.material_index));
                 }
             }
         }

@@ -32,39 +32,64 @@ https://github.com/user-attachments/assets/c79d244f-47bc-4c98-81f9-dfb46ed5fb86
 ```rs
     // Create a brush
     let mut brush = Brush::new();
-    brush.knives = vec![brusher::brush::Knife {
+
+    // Room 1
+    brush.add(Brushlet::from_cuboid(
+        brusher::primitives::Cuboid {
+            origin: DVec3::new(0.0, 0.0, 0.0),
+            width: 8.0,
+            height: 4.0,
+            depth: 8.0,
+            material_indices: CuboidMaterialIndices {
+                front: 0,
+                back: 0,
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+            },
+        },
+        BrushletSettings {
+            operation: BooleanOp::Subtract,
+            // Cut the brushlet with a knife
+            knives: vec![Knife {
+                normal: DVec3::new(-1.0, -1.0, -1.0),
+                distance_from_origin: 4.0,
+                material_index: 0,
+            }],
+            inverted: true,
+        },
+    ));
+
+    // Room 2
+    brush.add(Brushlet::from_cuboid(
+        brusher::primitives::Cuboid {
+            origin: DVec3::new(4.0, 0.0, 4.0),
+            width: 8.0,
+            height: 4.0,
+            depth: 8.0,
+            material_indices: CuboidMaterialIndices {
+                front: 1,
+                back: 1,
+                left: 1,
+                right: 1,
+                top: 1,
+                bottom: 1,
+            },
+        },
+        BrushletSettings {
+            operation: BooleanOp::Union,
+            knives: vec![],
+            inverted: false,
+        },
+    ));
+
+    // Cut the entire brush with a knife
+    brush.knives = vec![Knife {
         normal: DVec3::new(1.0, 1.0, 0.0),
         distance_from_origin: 4.0,
+        material_index: 0,
     }];
-
-    // Room 1 - Add a Brushlet to the Brush
-    brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
-        origin: DVec3::new(0.0, 0.0, 0.0),
-        width: 8.0,
-        height: 4.0,
-        depth: 8.0,
-        material: 0,
-        operation: BrushletBooleanOp::Subtract,
-        knives: vec![brusher::brush::Knife {
-            normal: DVec3::new(-1.0, -1.0, -1.0),
-            distance_from_origin: 4.0,
-        }],
-        inverted: true,
-    }));
-
-    // Room 2 - Add a Brushlet to the Brush
-    brush.add(Brushlet::cuboid(brusher::brush::Cuboid {
-        origin: DVec3::new(4.0, 0.0, 4.0),
-        width: 8.0,
-        height: 4.0,
-        depth: 8.0,
-        material: 1,
-        operation: BrushletBooleanOp::Union,
-        knives: vec![],
-        inverted: false,
-    }));
-
-    let mesh_data = brush.to_mesh_data();
 ```
 
 ## special thanks

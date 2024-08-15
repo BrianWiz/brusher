@@ -38,7 +38,7 @@ pub fn generate_polygons_from_surfaces(planes: &[Surface]) -> Vec<Polygon> {
             polygons.push(Polygon {
                 vertices: polygon_vertices,
                 surface,
-                material: 0,
+                material_index: 0,
             });
         }
     }

@@ -2,9 +2,8 @@ pub mod brushlet;
 mod node;
 pub mod operations;
 
-use crate::{polygon::Polygon, surface::Surface};
+use crate::polygon::Polygon;
 use brushlet::Brushlet;
-use glam::DVec3;
 use operations::Knife;
 
 #[derive(Debug, Clone)]
