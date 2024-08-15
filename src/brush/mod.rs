@@ -16,6 +16,12 @@ pub enum BrushError {
     BrushletAtIndexDoesNotExist(usize),
 }
 
+#[derive(Debug, Clone)]
+pub struct BrushSettings {
+    pub name: String,
+    pub knives: Vec<Knife>,
+}
+
 /// A brushlet operation
 ///
 /// A brushlet operation is a specific operation to perform on a brushlet.
@@ -45,14 +51,17 @@ pub enum BooleanOp {
 #[derive(Debug, Clone)]
 pub struct Brush {
     brushlets: Vec<Brushlet>,
-    pub knives: Vec<Knife>,
+    pub settings: BrushSettings,
 }
 
 impl Brush {
-    pub fn new() -> Self {
+    pub fn new(name: &str) -> Self {
         Self {
             brushlets: Vec::new(),
-            knives: Vec::new(),
+            settings: BrushSettings {
+                name: name.to_string(),
+                knives: Vec::new(),
+            },
         }
     }
 
@@ -110,7 +119,7 @@ impl Brush {
         }
 
         // do the final global knife operations
-        for knife in &self.knives {
+        for knife in &self.settings.knives {
             final_brushlet = knife.perform(&final_brushlet);
         }
 

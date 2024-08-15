@@ -1,46 +1,30 @@
-use bevy::color::palettes::css::WHITE;
-use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
-use bevy::render::settings::{RenderCreation, WgpuFeatures, WgpuSettings};
 use bevy::render::texture::{
     ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
 };
-use bevy::render::RenderPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-
-use brusher::brush::brushlet::{Brushlet, BrushletSettings};
-use brusher::brush::{operations::Knife, BooleanOp, Brush, MeshData};
-use brusher::primitives::CuboidMaterialIndices;
 use glam::DVec3;
+
+use brusher::prelude::*;
+
+enum MyMaterials {
+    ProtoGrey = 0,
+    ProtoGreen = 1,
+}
+
+impl From<MyMaterials> for usize {
+    fn from(material: MyMaterials) -> usize {
+        material as usize
+    }
+}
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
 
     App::new()
-        .add_plugins((
-            DefaultPlugins.set(RenderPlugin {
-                render_creation: RenderCreation::Automatic(WgpuSettings {
-                    // WARN this is a native only feature. It will not work with webgl or webgpu
-                    features: WgpuFeatures::POLYGON_MODE_LINE,
-                    ..default()
-                }),
-                ..default()
-            }),
-            // You need to add this plugin to enable wireframe rendering
-            WireframePlugin,
-        ))
-        // Wireframes can be configured with this resource. This can be changed at runtime.
-        .insert_resource(WireframeConfig {
-            // The global wireframe config enables drawing of wireframes on every mesh,
-            // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
-            // regardless of the global configuration.
-            global: true,
-            // Controls the default color of all wireframes. Used as the default color for global wireframes.
-            // Can be changed per mesh using the `WireframeColor` component.
-            default_color: WHITE.into(),
-        })
+        .add_plugins(DefaultPlugins)
         .add_plugins(PanOrbitCameraPlugin)
         .add_systems(Startup, setup)
         .run();
@@ -86,19 +70,19 @@ fn setup(
     let texture_handle2 = asset_server.load_with_settings("proto2.png", settings);
 
     // Create materials
-    let material1 = materials.add(StandardMaterial {
+    let material_proto_grey = materials.add(StandardMaterial {
         base_color_texture: Some(texture_handle.clone()),
         ..default()
     });
-    let material2 = materials.add(StandardMaterial {
+    let material_proto_green = materials.add(StandardMaterial {
         base_color_texture: Some(texture_handle2.clone()),
         ..default()
     });
 
-    // Create a brush
-    let mut brush = Brush::new();
+    // Create a brush that will combine two rooms
+    let mut brush = Brush::new("Rooms");
 
-    // Room 1
+    // Create a brushlet for the first room
     brush.add(Brushlet::from_cuboid(
         brusher::primitives::Cuboid {
             origin: DVec3::new(0.0, 0.0, 0.0),
@@ -106,27 +90,28 @@ fn setup(
             height: 4.0,
             depth: 8.0,
             material_indices: CuboidMaterialIndices {
-                front: 0,
-                back: 1,
-                left: 1,
-                right: 0,
-                top: 0,
-                bottom: 0,
+                front: MyMaterials::ProtoGrey.into(),
+                back: MyMaterials::ProtoGreen.into(),
+                left: MyMaterials::ProtoGreen.into(),
+                right: MyMaterials::ProtoGrey.into(),
+                top: MyMaterials::ProtoGrey.into(),
+                bottom: MyMaterials::ProtoGrey.into(),
             },
         },
         BrushletSettings {
+            name: "Room 1".to_string(),
             operation: BooleanOp::Subtract,
             // Cut the brushlet with a knife
             knives: vec![Knife {
                 normal: DVec3::new(-1.0, -1.0, -1.0),
                 distance_from_origin: 4.0,
-                material_index: 1,
+                material_index: MyMaterials::ProtoGreen.into(),
             }],
             inverted: true,
         },
     ));
 
-    // Room 2
+    // Create a brushlet for the second room
     brush.add(Brushlet::from_cuboid(
         brusher::primitives::Cuboid {
             origin: DVec3::new(4.0, 0.0, 4.0),
@@ -134,32 +119,33 @@ fn setup(
             height: 4.0,
             depth: 8.0,
             material_indices: CuboidMaterialIndices {
-                front: 1,
-                back: 1,
-                left: 1,
-                right: 1,
-                top: 1,
-                bottom: 1,
+                front: MyMaterials::ProtoGreen.into(),
+                back: MyMaterials::ProtoGreen.into(),
+                left: MyMaterials::ProtoGreen.into(),
+                right: MyMaterials::ProtoGreen.into(),
+                top: MyMaterials::ProtoGreen.into(),
+                bottom: MyMaterials::ProtoGreen.into(),
             },
         },
         BrushletSettings {
+            name: "Room 2".to_string(),
             operation: BooleanOp::Union,
             knives: vec![],
             inverted: false,
         },
     ));
 
-    // Cut the entire brush with a knife
-    brush.knives = vec![Knife {
+    // Cut at the brush level with a knife to cut both rooms at once
+    brush.settings.knives = vec![Knife {
         normal: DVec3::new(1.0, 1.0, 0.0),
         distance_from_origin: 4.0,
-        material_index: 0,
+        material_index: MyMaterials::ProtoGrey.into(),
     }];
 
     let mesh_data = brush.to_mesh_data();
     let mut meshes_with_materials = csg_to_bevy_meshes(&mesh_data);
 
-    let mut pillar_brush = Brush::new();
+    let mut pillar_brush = Brush::new("Pillar");
     pillar_brush.add(create_beveled_pillar(DVec3::new(2.0, 0.0, 2.0)));
 
     // Spawn each mesh with the appropriate material
@@ -167,9 +153,9 @@ fn setup(
     meshes_with_materials.extend(csg_to_bevy_meshes(&mesh_data));
     for (mesh, material_index) in meshes_with_materials {
         let material = match material_index {
-            0 => material1.clone(),
-            1 => material2.clone(),
-            _ => material1.clone(), // default
+            0 => material_proto_grey.clone(),
+            1 => material_proto_green.clone(),
+            _ => material_proto_grey.clone(),
         };
 
         commands.spawn(PbrBundle {
@@ -205,6 +191,7 @@ fn create_beveled_pillar(origin: DVec3) -> Brushlet {
             },
         },
         BrushletSettings {
+            name: "Stem".to_string(),
             operation: BooleanOp::Union,
             knives: vec![
                 // Front-right edge

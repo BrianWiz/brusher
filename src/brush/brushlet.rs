@@ -10,6 +10,7 @@ use super::{node::Node, operations::Knife, BooleanOp, MeshData};
 
 #[derive(Debug, Clone)]
 pub struct BrushletSettings {
+    pub name: String,
     pub operation: BooleanOp,
     pub knives: Vec<Knife>,
     pub inverted: bool,
