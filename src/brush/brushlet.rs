@@ -1,12 +1,11 @@
-use glam::{dvec3, DVec3};
-
+use super::{node::Node, operations::Knife, BooleanOp, MeshData};
 use crate::{
+    broadphase::{Aabb, Raycast, RaycastResult},
     polygon::{Polygon, Vertex},
     primitives::Cuboid,
     surface::Surface,
 };
-
-use super::{node::Node, operations::Knife, BooleanOp, MeshData};
+use glam::{dvec3, DVec3};
 
 #[derive(Debug, Clone)]
 pub struct BrushletSettings {
@@ -16,7 +15,7 @@ pub struct BrushletSettings {
     pub inverted: bool,
 }
 
-/// A brushlet
+/// # Brushlet
 ///
 /// A brushlet is a collection of polygons that can be combined using boolean operations.
 /// They are meant to exist only as a child of a brush.
@@ -29,6 +28,7 @@ pub struct BrushletSettings {
 #[derive(Debug, Clone)]
 pub struct Brushlet {
     pub polygons: Vec<Polygon>,
+    pub aabb: Aabb,
     pub settings: BrushletSettings,
 }
 
@@ -46,6 +46,7 @@ impl Brushlet {
         Brushlet {
             polygons: a.all_polygons(),
             settings: self.settings.clone(),
+            aabb: Aabb::from(&a.all_polygons()),
         }
     }
 
@@ -63,6 +64,7 @@ impl Brushlet {
         Brushlet {
             polygons: a.all_polygons(),
             settings: self.settings.clone(),
+            aabb: Aabb::from(&a.all_polygons()),
         }
     }
 
@@ -79,6 +81,7 @@ impl Brushlet {
         Brushlet {
             polygons: a.all_polygons(),
             settings: self.settings.clone(),
+            aabb: Aabb::from(&a.all_polygons()),
         }
     }
 
@@ -92,7 +95,6 @@ impl Brushlet {
         if self.settings.inverted {
             final_brushlet = final_brushlet.inverse();
         }
-
         MeshData {
             polygons: final_brushlet.polygons,
         }
@@ -102,6 +104,7 @@ impl Brushlet {
         let mut csg = Brushlet {
             polygons: self.polygons.clone(),
             settings: self.settings.clone(),
+            aabb: self.aabb,
         };
         for polygon in &mut csg.polygons {
             polygon.flip();
@@ -109,9 +112,47 @@ impl Brushlet {
         csg
     }
 
+    pub(crate) fn try_select(&self, raycast: &Raycast) -> bool {
+        if raycast.cast_against_aabb(&self.aabb).is_some() {
+            if let Some(result) = raycast.cast_against_polygons(&self.polygons) {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn from_surfaces(surfaces: Vec<Surface>, settings: BrushletSettings) -> Self {
         let polygons = crate::util::generate_polygons_from_surfaces(&surfaces);
-        Self { polygons, settings }
+        let aabb = Aabb::from(&polygons);
+        Self {
+            polygons,
+            settings,
+            aabb,
+        }
+    }
+
+    pub fn transform(&self, transform: glam::DAffine3) -> Self {
+        let mut polygons = Vec::new();
+        for polygon in &self.polygons {
+            polygons.push(polygon.transform(transform));
+        }
+        let mut knives = Vec::new();
+        for knife in &self.settings.knives {
+            knives.push(knife.transform(transform));
+        }
+
+        let aabb = Aabb::from(&polygons);
+
+        Brushlet {
+            polygons,
+            settings: BrushletSettings {
+                name: self.settings.name.clone(),
+                operation: self.settings.operation,
+                knives,
+                inverted: self.settings.inverted,
+            },
+            aabb,
+        }
     }
 
     pub fn from_cuboid(cuboid: Cuboid, settings: BrushletSettings) -> Self {
@@ -212,6 +253,78 @@ impl Brushlet {
             ),
         ];
 
-        Brushlet { polygons, settings }
+        let aabb = Aabb::from(&polygons);
+        Brushlet {
+            polygons,
+            settings,
+            aabb,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::prelude::CuboidMaterialIndices;
+    use glam::DVec3;
+
+    #[test]
+    fn test_try_select() {
+        let brushlet = Brushlet::from_cuboid(
+            Cuboid {
+                origin: DVec3::ZERO,
+                width: 1.0,
+                height: 1.0,
+                depth: 1.0,
+                material_indices: CuboidMaterialIndices {
+                    front: 1,
+                    back: 1,
+                    left: 1,
+                    right: 1,
+                    top: 1,
+                    bottom: 1,
+                },
+            },
+            BrushletSettings {
+                name: "Test".into(),
+                operation: BooleanOp::Union,
+                knives: Vec::new(),
+                inverted: false,
+            },
+        );
+
+        let raycast = Raycast::new(DVec3::new(0.0, 0.0, -2.0), DVec3::Z);
+        let selection = brushlet.try_select(&raycast);
+        assert!(selection == true);
+    }
+
+    #[test]
+    fn test_try_select_failure() {
+        let brushlet = Brushlet::from_cuboid(
+            Cuboid {
+                origin: DVec3::ZERO,
+                width: 1.0,
+                height: 1.0,
+                depth: 1.0,
+                material_indices: CuboidMaterialIndices {
+                    front: 1,
+                    back: 1,
+                    left: 1,
+                    right: 1,
+                    top: 1,
+                    bottom: 1,
+                },
+            },
+            BrushletSettings {
+                name: "Test".into(),
+                operation: BooleanOp::Union,
+                knives: Vec::new(),
+                inverted: false,
+            },
+        );
+
+        let raycast = Raycast::new(DVec3::new(0.0, 0.0, 2.0), DVec3::Z);
+        let selection = brushlet.try_select(&raycast);
+        assert!(selection == false);
     }
 }

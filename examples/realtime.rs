@@ -21,20 +21,37 @@ impl From<MyMaterials> for usize {
     }
 }
 
+#[derive(Component)]
+struct BrushComponent {
+    brush: Brush,
+}
+
+#[derive(Component)]
+struct BrushMesh;
+
+#[derive(Resource, Default)]
+struct ProtoMaterials {
+    grey: Handle<StandardMaterial>,
+    green: Handle<StandardMaterial>,
+}
+
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
 
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(PanOrbitCameraPlugin)
-        .add_systems(Startup, setup)
+        .add_systems(Startup, setup_system)
+        .add_systems(Update, animate_brush_system)
+        .init_resource::<ProtoMaterials>()
         .run();
 }
 
-fn setup(
+fn setup_system(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut proto_materials: ResMut<ProtoMaterials>,
     mut commands: Commands,
 ) {
     // Light
@@ -71,11 +88,11 @@ fn setup(
     let texture_handle2 = asset_server.load_with_settings("proto2.png", settings);
 
     // Create materials
-    let material_proto_grey = materials.add(StandardMaterial {
+    proto_materials.grey = materials.add(StandardMaterial {
         base_color_texture: Some(texture_handle.clone()),
         ..default()
     });
-    let material_proto_green = materials.add(StandardMaterial {
+    proto_materials.green = materials.add(StandardMaterial {
         base_color_texture: Some(texture_handle2.clone()),
         ..default()
     });
@@ -92,14 +109,7 @@ fn setup(
             width: 8.0,
             height: 4.0,
             depth: 8.0,
-            material_indices: CuboidMaterialIndices {
-                front: MyMaterials::ProtoGrey.into(),
-                back: MyMaterials::ProtoGreen.into(),
-                left: MyMaterials::ProtoGreen.into(),
-                right: MyMaterials::ProtoGrey.into(),
-                top: MyMaterials::ProtoGrey.into(),
-                bottom: MyMaterials::ProtoGrey.into(),
-            },
+            material_indices: CuboidMaterialIndices::default(),
         },
         BrushletSettings {
             name: "Room 1".to_string(),
@@ -148,93 +158,86 @@ fn setup(
         material_index: MyMaterials::ProtoGrey.into(),
     }];
 
-    let mesh_data = brush.to_mesh_data();
-    let mut meshes_with_materials = csg_to_bevy_meshes(&mesh_data);
+    // Spawn the brush mesh
+    spawn_brush_meshes(&mut commands, &mut meshes, &proto_materials, &brush);
 
-    let mut pillar_brush = Brush::new("Pillar");
-    pillar_brush
-        .brushlets
-        .push(create_beveled_pillar(DVec3::new(2.0, 0.0, 2.0)));
-
-    // Spawn each mesh with the appropriate material
-    let mesh_data = pillar_brush.to_mesh_data();
-    meshes_with_materials.extend(csg_to_bevy_meshes(&mesh_data));
-    for (mesh, material_index) in meshes_with_materials {
-        let material = match material_index {
-            0 => material_proto_grey.clone(),
-            1 => material_proto_green.clone(),
-            _ => material_proto_grey.clone(),
-        };
-
-        commands.spawn(PbrBundle {
-            mesh: meshes.add(mesh),
-            material,
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-            ..default()
-        });
-    }
+    // Spawn the brush entity
+    commands.spawn(BrushComponent { brush });
 
     println!("Time elapsed: {:?}", time_now.elapsed());
 }
 
-fn create_beveled_pillar(origin: DVec3) -> Brushlet {
-    let pillar_width = 1.0;
-    let pillar_height = 4.0;
-    let pillar_depth = 1.0;
-    let bevel_size = 0.1;
-    let sqrt2 = 2.0_f64.sqrt();
-    let base_distance = (pillar_width / 2.0 + pillar_depth / 2.0 - bevel_size) / sqrt2;
+fn animate_brush_system(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut brush_components: Query<&mut BrushComponent>,
+    mut mesh_components: Query<Entity, With<BrushMesh>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    proto_materials: Res<ProtoMaterials>,
+) {
+    // delete the old meshes
+    for entity in mesh_components.iter_mut() {
+        commands.entity(entity).despawn_recursive();
+    }
 
-    Brushlet::from_cuboid(
-        brusher::primitives::Cuboid {
-            origin,
-            width: pillar_width,
-            height: pillar_height,
-            depth: pillar_depth,
-            material_indices: CuboidMaterialIndices {
-                front: 1,
-                back: 1,
-                left: 1,
-                right: 1,
-                top: 1,
-                bottom: 1,
-            },
-        },
-        BrushletSettings {
-            name: "Stem".to_string(),
-            operation: BooleanOp::Union,
-            knives: vec![
-                // Front-right edge
-                Knife {
-                    normal: DVec3::new(1.0, 0.0, 1.0).normalize(),
-                    distance_from_origin: base_distance + (origin.x + origin.z) / sqrt2,
-                    material_index: 1,
-                },
-                // Front-left edge
-                Knife {
-                    normal: DVec3::new(-1.0, 0.0, 1.0).normalize(),
-                    distance_from_origin: base_distance + (-origin.x + origin.z) / sqrt2,
-                    material_index: 1,
-                },
-                // Back-right edge
-                Knife {
-                    normal: DVec3::new(1.0, 0.0, -1.0).normalize(),
-                    distance_from_origin: base_distance + (origin.x - origin.z) / sqrt2,
-                    material_index: 1,
-                },
-                // Back-left edge
-                Knife {
-                    normal: DVec3::new(-1.0, 0.0, -1.0).normalize(),
-                    distance_from_origin: base_distance + (-origin.x - origin.z) / sqrt2,
-                    material_index: 1,
-                },
-            ],
-            inverted: false,
-        },
-    )
+    for brush_component in brush_components.iter_mut() {
+        // animate the knives on a sine wave
+        let time = time.elapsed_seconds_f64();
+
+        let mut brush = brush_component.brush.clone();
+
+        // animate the brush knives
+        for knife in &mut brush.settings.knives {
+            knife.distance_from_origin = 4.0 + (time * 6.0 * std::f64::consts::PI).sin();
+        }
+
+        // animate the first brushlet's origin
+        brush.brushlets[0] = brush.brushlets[0].transform(DAffine3::from_translation(DVec3::new(
+            0.0,
+            (time * 0.1 * std::f64::consts::PI).sin(),
+            0.0,
+        )));
+
+        for brushlet in &mut brush.brushlets {
+            // animate the knives
+            for knife in &mut brushlet.settings.knives {
+                knife.distance_from_origin = 4.0 + (time * 2.0 * std::f64::consts::PI).sin();
+            }
+        }
+
+        // spawn the new meshes
+        spawn_brush_meshes(&mut commands, &mut meshes, &proto_materials, &brush);
+    }
 }
 
-pub fn csg_to_bevy_meshes(mesh_data: &MeshData) -> Vec<(Mesh, usize)> {
+fn spawn_brush_meshes(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    proto_materials: &ProtoMaterials,
+    brush: &Brush,
+) {
+    let mesh_data = brush.to_mesh_data();
+    let meshes_with_materials = csg_to_bevy_meshes(&mesh_data);
+    for (mesh, material_index) in meshes_with_materials {
+        let material = match material_index {
+            0 => proto_materials.grey.clone(),
+            1 => proto_materials.green.clone(),
+            _ => proto_materials.grey.clone(),
+        };
+
+        commands.spawn((
+            PbrBundle {
+                mesh: meshes.add(mesh),
+                material,
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                ..default()
+            },
+            BrushMesh,
+        ));
+    }
+}
+
+fn csg_to_bevy_meshes(mesh_data: &MeshData) -> Vec<(Mesh, usize)> {
     let mut meshes_with_materials: Vec<(Mesh, usize)> = vec![];
 
     for polygon in &mesh_data.polygons {

@@ -2,13 +2,15 @@ use std::collections::HashMap;
 
 use glam::DVec3;
 
+use crate::broadphase::Aabb;
+
 use super::{
     polygon::{Polygon, Vertex},
     surface::Surface,
 };
 
 /// Generates vertices from a list of planes.
-pub fn generate_polygons_from_surfaces(planes: &[Surface]) -> Vec<Polygon> {
+pub(crate) fn generate_polygons_from_surfaces(planes: &[Surface]) -> Vec<Polygon> {
     let plane_vertex_map = generate_vertices(planes);
     let mut polygons = Vec::new();
 
@@ -38,7 +40,6 @@ pub fn generate_polygons_from_surfaces(planes: &[Surface]) -> Vec<Polygon> {
             polygons.push(Polygon {
                 vertices: polygon_vertices,
                 surface,
-                material_index: surface.material_index,
             });
         }
     }
@@ -47,7 +48,7 @@ pub fn generate_polygons_from_surfaces(planes: &[Surface]) -> Vec<Polygon> {
 }
 
 /// Generates vertices from a list of planes, grouped by plane.
-fn generate_vertices(planes: &[Surface]) -> HashMap<Surface, Vec<Vertex>> {
+pub(crate) fn generate_vertices(planes: &[Surface]) -> HashMap<Surface, Vec<Vertex>> {
     let plane_count = planes.len();
     let mut plane_vertex_map = HashMap::new();
 
@@ -87,7 +88,7 @@ fn generate_vertices(planes: &[Surface]) -> HashMap<Surface, Vec<Vertex>> {
 }
 
 /// Finds the intersection point of three planes.
-fn threeway_intersection(p1: &Surface, p2: &Surface, p3: &Surface) -> Option<DVec3> {
+pub(crate) fn threeway_intersection(p1: &Surface, p2: &Surface, p3: &Surface) -> Option<DVec3> {
     let n1 = &p1.normal;
     let n2 = &p2.normal;
     let n3 = &p3.normal;

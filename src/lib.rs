@@ -1,6 +1,8 @@
+pub mod broadphase;
 pub mod brush;
 pub mod polygon;
 pub mod primitives;
+pub mod scene;
 pub mod surface;
 mod util;
 

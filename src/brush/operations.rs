@@ -56,4 +56,14 @@ impl Knife {
         let cutting_cuboid = Brushlet::from_surfaces(planes, brushlet.settings.clone());
         brushlet.subtract(&cutting_cuboid)
     }
+
+    pub fn transform(&self, transform: glam::DAffine3) -> Self {
+        let normal = transform.transform_vector3(self.normal).normalize();
+        let distance_from_origin = self.distance_from_origin + normal.dot(transform.translation);
+        Self {
+            normal,
+            distance_from_origin,
+            material_index: self.material_index,
+        }
+    }
 }

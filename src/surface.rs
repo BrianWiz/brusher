@@ -168,10 +168,10 @@ impl Surface {
                     }
                 }
                 if f.len() >= 3 {
-                    front.push(Polygon::new(f, polygon.material_index));
+                    front.push(Polygon::new(f, polygon.surface.material_index));
                 }
                 if b.len() >= 3 {
-                    back.push(Polygon::new(b, polygon.material_index));
+                    back.push(Polygon::new(b, polygon.surface.material_index));
                 }
             }
         }
@@ -196,5 +196,11 @@ impl Surface {
         let u_axis = up.cross(*normal).normalize();
         let v_axis = normal.cross(u_axis);
         (u_axis, v_axis)
+    }
+
+    pub fn transform(&self, transform: glam::DAffine3) -> Self {
+        let normal = transform.transform_vector3(self.normal);
+        let distance_from_origin = self.distance_from_origin + normal.dot(transform.translation);
+        Self::new(normal, distance_from_origin, self.material_index)
     }
 }

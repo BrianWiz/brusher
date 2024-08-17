@@ -2,7 +2,7 @@ pub mod brushlet;
 mod node;
 pub mod operations;
 
-use crate::polygon::Polygon;
+use crate::{broadphase::Raycast, polygon::Polygon};
 use brushlet::Brushlet;
 use operations::Knife;
 
@@ -20,6 +20,19 @@ pub enum BrushError {
 pub struct BrushSettings {
     pub name: String,
     pub knives: Vec<Knife>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BrushSelection<'a> {
+    pub brush: &'a Brush,
+    pub idx: usize,
+    pub layer_idx: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct BrushletSelection<'a> {
+    pub brushlet: &'a Brushlet,
+    pub idx: usize,
 }
 
 /// A brushlet operation
@@ -41,7 +54,7 @@ pub enum BooleanOp {
     Subtract,
 }
 
-/// A brush
+/// # Brush
 ///
 /// A brush is a collection of brushlets that can be combined using boolean operations.
 ///
@@ -50,7 +63,7 @@ pub enum BooleanOp {
 /// * `knives` - The knives to use for cutting
 #[derive(Debug, Clone)]
 pub struct Brush {
-    brushlets: Vec<Brushlet>,
+    pub brushlets: Vec<Brushlet>,
     pub settings: BrushSettings,
 }
 
@@ -65,38 +78,30 @@ impl Brush {
         }
     }
 
+    pub(crate) fn try_select(&self, raycast: &Raycast) -> bool {
+        for brushlet in self.brushlets.iter() {
+            if brushlet.try_select(&raycast) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn try_select_brushlet(&self, raycast: &Raycast) -> Option<BrushletSelection> {
+        for (idx, brushlet) in self.brushlets.iter().enumerate() {
+            if brushlet.try_select(&raycast) {
+                return Some(BrushletSelection { brushlet, idx });
+            }
+        }
+        None
+    }
+
     /// Select a brushlet by index.
-    pub fn select(&self, idx: usize) -> Result<&Brushlet, BrushError> {
+    pub fn select_brushlet(&self, idx: usize) -> Result<&Brushlet, BrushError> {
         if idx >= self.brushlets.len() {
             return Err(BrushError::BrushletAtIndexDoesNotExist(idx));
         }
         Ok(&self.brushlets[idx])
-    }
-
-    /// Add a brushlet. Returns the index of the added brushlet.
-    pub fn add(&mut self, brushlet: Brushlet) -> usize {
-        self.brushlets.push(brushlet);
-        self.brushlets.len() - 1
-    }
-
-    /// Insert a brushlet at a specific index.
-    pub fn update(&mut self, idx: usize, brushlet: Brushlet) -> Result<(), BrushError> {
-        if idx >= self.brushlets.len() {
-            return Err(BrushError::BrushletAtIndexDoesNotExist(idx));
-        }
-        self.brushlets[idx] = brushlet;
-
-        Ok(())
-    }
-
-    /// Remove a brushlet by index.
-    pub fn remove(&mut self, idx: usize) -> Result<(), BrushError> {
-        if idx >= self.brushlets.len() {
-            return Err(BrushError::BrushletAtIndexDoesNotExist(idx));
-        }
-        self.brushlets.remove(idx);
-
-        Ok(())
     }
 
     /// Performs all operations on the brushlets and returns the
@@ -124,5 +129,11 @@ impl Brush {
         }
 
         final_brushlet.to_mesh_data()
+    }
+
+    pub fn transform(&mut self, transform: glam::DAffine3) {
+        for brushlet in &mut self.brushlets {
+            brushlet.transform(transform);
+        }
     }
 }

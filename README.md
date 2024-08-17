@@ -48,7 +48,7 @@ https://github.com/user-attachments/assets/c79d244f-47bc-4c98-81f9-dfb46ed5fb86
     let mut brush = Brush::new("Rooms");
 
     // Create a brushlet for the first room
-    brush.add(Brushlet::from_cuboid(
+    brush.add_brushlet(Brushlet::from_cuboid(
         brusher::primitives::Cuboid {
             origin: DVec3::new(0.0, 0.0, 0.0),
             width: 8.0,
@@ -77,7 +77,7 @@ https://github.com/user-attachments/assets/c79d244f-47bc-4c98-81f9-dfb46ed5fb86
     ));
 
     // Create a brushlet for the second room
-    brush.add(Brushlet::from_cuboid(
+    brush.add_brushlet(Brushlet::from_cuboid(
         brusher::primitives::Cuboid {
             origin: DVec3::new(4.0, 0.0, 4.0),
             width: 8.0,

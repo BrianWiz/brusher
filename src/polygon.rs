@@ -1,27 +1,24 @@
-use glam::DVec3;
-
 use super::surface::Surface;
+use glam::DVec3;
 
 #[derive(Debug, Clone)]
 pub struct Polygon {
     pub vertices: Vec<Vertex>,
-    pub material_index: usize,
     pub surface: Surface,
 }
 
 impl Polygon {
     pub fn new(vertices: Vec<Vertex>, material_index: usize) -> Self {
-        let plane = Surface::from_points(
+        let mut surface = Surface::from_points(
             vertices[0].pos,
             vertices[1].pos,
             vertices[2].pos,
             material_index,
         );
-        Self {
-            vertices,
-            material_index,
-            surface: plane,
-        }
+
+        surface.material_index = material_index;
+
+        Self { vertices, surface }
     }
 
     pub fn flip(&mut self) {
@@ -75,6 +72,30 @@ impl Polygon {
             .map(|vertex| self.surface.compute_uv(vertex.pos))
             .map(|uv| [uv.x as f32, uv.y as f32])
             .collect()
+    }
+
+    pub fn transform(&self, transform: glam::DAffine3) -> Self {
+        let vertices = self
+            .vertices
+            .iter()
+            .map(|vertex| {
+                let pos = transform.transform_point3(vertex.pos);
+                let normal = transform.transform_vector3(vertex.normal);
+                Vertex::new(pos, normal)
+            })
+            .collect();
+
+        Self {
+            vertices,
+            surface: self.surface.transform(transform),
+        }
+    }
+
+    pub fn contains_point(&self, point: DVec3) -> bool {
+        let normal = self.surface.normal;
+        let d = -normal.dot(self.vertices[0].pos);
+        let distance = normal.dot(point) + d;
+        distance.abs() < 0.0001
     }
 }
 

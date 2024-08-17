@@ -9,7 +9,7 @@ use glam::DVec3;
 /// * `back` - The material index for the back face
 /// * `left` - The material index for the left face
 /// * `right` - The material index for the right face
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CuboidMaterialIndices {
     pub top: usize,
     pub bottom: usize,
