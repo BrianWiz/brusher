@@ -26,7 +26,7 @@ https://github.com/user-attachments/assets/c79d244f-47bc-4c98-81f9-dfb46ed5fb86
 - [ ] editor API (WIP)
 
 ## example (Bevy)
-`cargo run --example basic`
+`cargo run --release --features bevy --example realtime_basic`
 
 ## usage
 ```rs
@@ -133,26 +133,8 @@ This example uses bevy, but you should be able to adapt it to any engine that su
     let material_proto_grey = materials.add(Color::rgb(0.5, 0.5, 0.5).into());
     let material_proto_green = materials.add(Color::rgb(0.2, 0.8, 0.2).into());
 
-    // Get the mesh data from the brush
-    let mesh_data = brush.to_mesh_data()
-
-    // Create a mesh for each face in the mesh data
-    let mut meshes_with_materials: Vec<(Mesh, usize)> = vec![];
-    for polygon in &mesh_data.polygons {
-        let positions = polygon.positions_32();
-        let normals = polygon.normals_32();
-        let uvs = polygon.uvs();
-        let indices = polygon.indices();
-        let mut mesh = Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::default(),
-        );
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-        mesh.insert_indices(Indices::U32(indices));
-        meshes_with_materials.push((mesh, polygon.material_index));
-    }
+    // Get the mesh data from the brush and convert it to bevy meshes
+    let meshes_with_materials = brush.to_mesh_data().to_bevy_meshes();
 
     // Spawn the meshes and assign materials based on the material index
     for (mesh, material_index) in meshes_with_materials {

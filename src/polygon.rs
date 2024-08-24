@@ -1,7 +1,13 @@
 use super::surface::Surface;
-use glam::DVec3;
+
+#[cfg(feature = "bevy")]
+use bevy::math::{DAffine3, DVec3};
+
+#[cfg(not(feature = "bevy"))]
+use glam::{DAffine3, DVec3};
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Reflect))]
 pub struct Polygon {
     pub vertices: Vec<Vertex>,
     pub surface: Surface,
@@ -16,7 +22,7 @@ impl Polygon {
             material_index,
         );
 
-        surface.material_index = material_index;
+        surface.material_idx = material_index;
 
         Self { vertices, surface }
     }
@@ -74,7 +80,20 @@ impl Polygon {
             .collect()
     }
 
-    pub fn transform(&self, transform: glam::DAffine3) -> Self {
+    pub fn compute_transform(&self) -> DAffine3 {
+        let normal = self.surface.normal;
+        let tangent = if normal.x.abs() > 0.9 {
+            DVec3::new(0.0, 1.0, 0.0)
+        } else {
+            DVec3::new(1.0, 0.0, 0.0)
+        };
+        let bitangent = normal.cross(tangent).normalize();
+        let tangent = bitangent.cross(normal).normalize();
+
+        DAffine3::from_cols(tangent, bitangent, normal, self.vertices[0].pos)
+    }
+
+    pub fn transform(&self, transform: DAffine3) -> Self {
         let vertices = self
             .vertices
             .iter()
@@ -100,6 +119,7 @@ impl Polygon {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Reflect))]
 pub struct Vertex {
     pub pos: DVec3,
     pub normal: DVec3,

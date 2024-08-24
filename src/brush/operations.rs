@@ -1,4 +1,8 @@
-use glam::DVec3;
+#[cfg(feature = "bevy")]
+use bevy::math::{DAffine3, DVec3};
+
+#[cfg(not(feature = "bevy"))]
+use glam::{DAffine3, DVec3};
 
 use super::brushlet::Brushlet;
 use crate::surface::Surface;
@@ -11,6 +15,7 @@ use crate::surface::Surface;
 /// * `normal` - The normal of the plane
 /// * `distance_from_origin` - The distance from the origin of the geometry
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Reflect))]
 pub struct Knife {
     pub normal: DVec3,
     pub distance_from_origin: f64,
@@ -57,7 +62,7 @@ impl Knife {
         brushlet.subtract(&cutting_cuboid)
     }
 
-    pub fn transform(&self, transform: glam::DAffine3) -> Self {
+    pub fn transform(&self, transform: DAffine3) -> Self {
         let normal = transform.transform_vector3(self.normal).normalize();
         let distance_from_origin = self.distance_from_origin + normal.dot(transform.translation);
         Self {

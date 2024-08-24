@@ -5,9 +5,15 @@ use crate::{
     primitives::Cuboid,
     surface::Surface,
 };
-use glam::{dvec3, DVec3};
+
+#[cfg(feature = "bevy")]
+use bevy::math::{dvec3, DAffine3, DQuat, DVec3};
+
+#[cfg(not(feature = "bevy"))]
+use glam::{dvec3, DAffine3, DQuat, DVec3};
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Reflect))]
 pub struct BrushletSettings {
     pub name: String,
     pub operation: BooleanOp,
@@ -26,6 +32,7 @@ pub struct BrushletSettings {
 /// * `knives` - The knives to use for cutting
 /// * `inverted` - Whether the brushlet is inverted
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Reflect))]
 pub struct Brushlet {
     pub polygons: Vec<Polygon>,
     pub aabb: Aabb,
@@ -33,7 +40,7 @@ pub struct Brushlet {
 }
 
 impl Brushlet {
-    pub(crate) fn union(&self, other: &Brushlet) -> Self {
+    pub fn union(&self, other: &Brushlet) -> Self {
         let mut a = Node::new(self.polygons.clone());
         let mut b = Node::new(other.polygons.clone());
         a.clip_to(&b);
@@ -50,7 +57,7 @@ impl Brushlet {
         }
     }
 
-    pub(crate) fn subtract(&self, other: &Brushlet) -> Self {
+    pub fn subtract(&self, other: &Brushlet) -> Self {
         let mut a = Node::new(self.polygons.clone());
         let mut b = Node::new(other.polygons.clone());
         a.invert();
@@ -68,7 +75,7 @@ impl Brushlet {
         }
     }
 
-    pub(crate) fn intersect(&self, other: &Brushlet) -> Self {
+    pub fn intersect(&self, other: &Brushlet) -> Self {
         let mut a = Node::new(self.polygons.clone());
         let mut b = Node::new(other.polygons.clone());
         a.invert();
@@ -85,7 +92,7 @@ impl Brushlet {
         }
     }
 
-    pub(crate) fn to_mesh_data(&self) -> MeshData {
+    pub fn to_mesh_data(&self) -> MeshData {
         let mut final_brushlet = self.clone();
 
         for knife in &self.settings.knives {
@@ -100,7 +107,7 @@ impl Brushlet {
         }
     }
 
-    pub(crate) fn inverse(&self) -> Self {
+    pub fn inverse(&self) -> Self {
         let mut csg = Brushlet {
             polygons: self.polygons.clone(),
             settings: self.settings.clone(),
@@ -112,13 +119,13 @@ impl Brushlet {
         csg
     }
 
-    pub(crate) fn try_select(&self, raycast: &Raycast) -> bool {
+    pub fn try_select(&self, raycast: &Raycast) -> Option<RaycastResult> {
         if raycast.cast_against_aabb(&self.aabb).is_some() {
             if let Some(result) = raycast.cast_against_polygons(&self.polygons) {
-                return true;
+                return Some(result);
             }
         }
-        false
+        None
     }
 
     pub fn from_surfaces(surfaces: Vec<Surface>, settings: BrushletSettings) -> Self {
@@ -131,7 +138,30 @@ impl Brushlet {
         }
     }
 
-    pub fn transform(&self, transform: glam::DAffine3) -> Self {
+    pub fn compute_transform(&self) -> DAffine3 {
+        if self.polygons.is_empty() {
+            return DAffine3::IDENTITY;
+        }
+
+        let mut avg_translation = DVec3::ZERO;
+        let mut avg_rotation = DQuat::IDENTITY;
+        let mut avg_scale = DVec3::ONE;
+
+        for polygon in &self.polygons {
+            let transform = polygon.compute_transform();
+            let (scale, rotation, translation) = transform.to_scale_rotation_translation();
+
+            avg_translation += translation;
+            avg_rotation = avg_rotation.slerp(rotation, 1.0 / self.polygons.len() as f64);
+            avg_scale *= scale.powf(1.0 / self.polygons.len() as f64);
+        }
+
+        avg_translation /= self.polygons.len() as f64;
+
+        DAffine3::from_scale_rotation_translation(avg_scale, avg_rotation, avg_translation)
+    }
+
+    pub fn transform(&self, transform: DAffine3) -> Self {
         let mut polygons = Vec::new();
         for polygon in &self.polygons {
             polygons.push(polygon.transform(transform));
@@ -265,8 +295,7 @@ impl Brushlet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::prelude::CuboidMaterialIndices;
-    use glam::DVec3;
+    use crate::prelude::*;
 
     #[test]
     fn test_try_select() {
@@ -295,7 +324,14 @@ mod tests {
 
         let raycast = Raycast::new(DVec3::new(0.0, 0.0, -2.0), DVec3::Z);
         let selection = brushlet.try_select(&raycast);
-        assert!(selection == true);
+        assert!(
+            selection
+                == Some(RaycastResult {
+                    distance: 2.0,
+                    normal: DVec3::Z,
+                    point: DVec3::new(0.0, 0.0, -1.0),
+                })
+        );
     }
 
     #[test]
@@ -325,6 +361,6 @@ mod tests {
 
         let raycast = Raycast::new(DVec3::new(0.0, 0.0, 2.0), DVec3::Z);
         let selection = brushlet.try_select(&raycast);
-        assert!(selection == false);
+        assert!(selection == None);
     }
 }

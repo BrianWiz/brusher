@@ -1,3 +1,4 @@
+use bevy::math::*;
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
@@ -5,8 +6,6 @@ use bevy::render::texture::{
     ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
 };
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-use glam::{DAffine3, DVec3};
-
 use brusher::prelude::*;
 
 // Helper enum to map materials to indices
@@ -148,8 +147,7 @@ fn setup(
         material_index: MyMaterials::ProtoGrey.into(),
     }];
 
-    let mesh_data = brush.to_mesh_data();
-    let mut meshes_with_materials = csg_to_bevy_meshes(&mesh_data);
+    let mut meshes_with_materials = brush.to_mesh_data().to_bevy_meshes();
 
     let mut pillar_brush = Brush::new("Pillar");
     pillar_brush
@@ -157,8 +155,7 @@ fn setup(
         .push(create_beveled_pillar(DVec3::new(2.0, 0.0, 2.0)));
 
     // Spawn each mesh with the appropriate material
-    let mesh_data = pillar_brush.to_mesh_data();
-    meshes_with_materials.extend(csg_to_bevy_meshes(&mesh_data));
+    meshes_with_materials.extend(pillar_brush.to_mesh_data().to_bevy_meshes());
     for (mesh, material_index) in meshes_with_materials {
         let material = match material_index {
             0 => material_proto_grey.clone(),
@@ -232,26 +229,4 @@ fn create_beveled_pillar(origin: DVec3) -> Brushlet {
             inverted: false,
         },
     )
-}
-
-pub fn csg_to_bevy_meshes(mesh_data: &MeshData) -> Vec<(Mesh, usize)> {
-    let mut meshes_with_materials: Vec<(Mesh, usize)> = vec![];
-
-    for polygon in &mesh_data.polygons {
-        let positions = polygon.positions_32();
-        let normals = polygon.normals_32();
-        let uvs = polygon.uvs();
-        let indices = polygon.indices();
-        let mut mesh = Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::default(),
-        );
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-        mesh.insert_indices(Indices::U32(indices));
-        meshes_with_materials.push((mesh, polygon.surface.material_index));
-    }
-
-    meshes_with_materials
 }

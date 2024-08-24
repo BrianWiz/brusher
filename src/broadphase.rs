@@ -1,8 +1,13 @@
 use crate::polygon::Polygon;
-use glam::DVec3;
 use std::ops::{Add, Sub};
 
-#[derive(Clone, Copy, Debug)]
+#[cfg(feature = "bevy")]
+use bevy::math::DVec3;
+
+#[cfg(not(feature = "bevy"))]
+use glam::DVec3;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RaycastResult {
     pub distance: f64,
     pub point: DVec3,
@@ -40,7 +45,8 @@ impl Raycast {
         let normal = polygon.surface.normal;
         let denominator = normal.dot(self.direction);
 
-        if denominator.abs() < f64::EPSILON {
+        // Ignore backfaces: only consider polygons facing towards the ray
+        if denominator >= 0.0 {
             return None;
         }
 
@@ -106,6 +112,7 @@ impl Raycast {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Reflect))]
 pub struct Aabb {
     pub min: DVec3,
     pub max: DVec3,
@@ -189,6 +196,11 @@ impl Aabb {
 #[cfg(test)]
 mod tests {
     use super::{Aabb, Raycast};
+
+    #[cfg(feature = "bevy")]
+    use bevy::math::DVec3;
+
+    #[cfg(not(feature = "bevy"))]
     use glam::DVec3;
 
     #[test]

@@ -4,7 +4,12 @@ use std::{
 };
 
 use super::polygon::Polygon;
-use glam::{DVec2, DVec3};
+
+#[cfg(feature = "bevy")]
+use bevy::math::{DAffine3, DVec2, DVec3};
+
+#[cfg(not(feature = "bevy"))]
+use glam::{DAffine3, DVec2, DVec3};
 
 /// The type of a polygon.
 ///
@@ -45,10 +50,11 @@ impl BitOr for PolygonType {
 /// * `normal` - The normal vector of the surface
 /// * `distance_from_origin` - The distance from the origin
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Reflect))]
 pub struct Surface {
     pub normal: DVec3,
     pub distance_from_origin: f64,
-    pub material_index: usize,
+    pub material_idx: usize,
 }
 
 impl Hash for Surface {
@@ -87,11 +93,11 @@ impl Surface {
         Self::quantize(self.distance_from_origin)
     }
 
-    pub fn new(normal: DVec3, distance_from_origin: f64, material_index: usize) -> Self {
+    pub fn new(normal: DVec3, distance_from_origin: f64, material_idx: usize) -> Self {
         Self {
             normal,
             distance_from_origin,
-            material_index,
+            material_idx,
         }
     }
 
@@ -168,10 +174,10 @@ impl Surface {
                     }
                 }
                 if f.len() >= 3 {
-                    front.push(Polygon::new(f, polygon.surface.material_index));
+                    front.push(Polygon::new(f, polygon.surface.material_idx));
                 }
                 if b.len() >= 3 {
-                    back.push(Polygon::new(b, polygon.surface.material_index));
+                    back.push(Polygon::new(b, polygon.surface.material_idx));
                 }
             }
         }
@@ -198,9 +204,9 @@ impl Surface {
         (u_axis, v_axis)
     }
 
-    pub fn transform(&self, transform: glam::DAffine3) -> Self {
+    pub fn transform(&self, transform: DAffine3) -> Self {
         let normal = transform.transform_vector3(self.normal);
         let distance_from_origin = self.distance_from_origin + normal.dot(transform.translation);
-        Self::new(normal, distance_from_origin, self.material_index)
+        Self::new(normal, distance_from_origin, self.material_idx)
     }
 }

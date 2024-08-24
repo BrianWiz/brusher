@@ -15,4 +15,7 @@ pub mod prelude {
     pub use crate::polygon::*;
     pub use crate::primitives::*;
     pub use crate::surface::*;
+
+    #[cfg(not(feature = "bevy"))]
+    pub use glam::{DAffine3, DVec2, DVec3};
 }

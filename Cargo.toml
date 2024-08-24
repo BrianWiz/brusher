@@ -6,7 +6,26 @@ edition = "2021"
 [dependencies]
 glam = "0.28.0"
 lightmap = "0.1.1"
+bevy = { version = "0.14.1", optional = true }
 
 [dev-dependencies]
-bevy = "0.14.1"
-bevy_panorbit_camera = "0.19.1"
+bevy_panorbit_camera = "0.19.2"
+bevy_egui = "0.29.0"
+transform-gizmo-egui = "0.3.0"
+mint = "0.5.9"
+
+[features]
+default = []
+bevy = ["dep:bevy"]
+
+[[example]]
+name = "basic"
+required-features = ["bevy"]
+
+[[example]]
+name = "realtime_basic"
+required-features = ["bevy"]
+
+[[example]]
+name = "realtime_editor"
+required-features = ["bevy"]

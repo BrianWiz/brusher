@@ -1,6 +1,7 @@
 {
+    "rust-analyzer.cargo.features": ["bevy"],
     "[rust]": {
         "editor.formatOnSave": true,
-        "editor.defaultFormatter": "rust-lang.rust-analyzer"
+        "editor.defaultFormatter": "rust-lang.rust-analyzer",
     }
 }

@@ -2,13 +2,55 @@ pub mod brushlet;
 mod node;
 pub mod operations;
 
-use crate::{broadphase::Raycast, polygon::Polygon};
+use crate::{
+    broadphase::{Raycast, RaycastResult},
+    polygon::Polygon,
+};
+
 use brushlet::Brushlet;
 use operations::Knife;
+
+#[cfg(feature = "bevy")]
+use bevy::{
+    math::DAffine3,
+    render::{
+        mesh::{Indices, Mesh, PrimitiveTopology},
+        render_asset::RenderAssetUsages,
+    },
+};
+
+#[cfg(not(feature = "bevy"))]
+use glam::DAffine3;
+
+pub type MaterialIndex = usize;
 
 #[derive(Debug, Clone)]
 pub struct MeshData {
     pub polygons: Vec<Polygon>,
+}
+
+impl MeshData {
+    pub fn to_bevy_meshes(&self) -> Vec<(Mesh, MaterialIndex)> {
+        let mut meshes_with_materials: Vec<(Mesh, MaterialIndex)> = vec![];
+
+        for polygon in &self.polygons {
+            let positions = polygon.positions_32();
+            let normals = polygon.normals_32();
+            let uvs = polygon.uvs();
+            let indices = polygon.indices();
+            let mut mesh = Mesh::new(
+                PrimitiveTopology::TriangleList,
+                RenderAssetUsages::default(),
+            );
+            mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+            mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+            mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+            mesh.insert_indices(Indices::U32(indices));
+            meshes_with_materials.push((mesh, polygon.surface.material_idx));
+        }
+
+        meshes_with_materials
+    }
 }
 
 #[derive(Debug)]
@@ -17,22 +59,17 @@ pub enum BrushError {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Reflect))]
 pub struct BrushSettings {
     pub name: String,
     pub knives: Vec<Knife>,
 }
 
-#[derive(Debug, Clone)]
-pub struct BrushSelection<'a> {
-    pub brush: &'a Brush,
+#[derive(Debug)]
+pub struct BrushSelection {
     pub idx: usize,
     pub layer_idx: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct BrushletSelection<'a> {
-    pub brushlet: &'a Brushlet,
-    pub idx: usize,
+    pub raycast_result: RaycastResult,
 }
 
 /// A brushlet operation
@@ -48,6 +85,7 @@ pub enum BrushletOp {
 
 /// A boolean operation to perform between two brushlets.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Reflect))]
 pub enum BooleanOp {
     Union,
     Intersect,
@@ -62,6 +100,10 @@ pub enum BooleanOp {
 /// * `brushlets` - The brushlets that make up the brush
 /// * `knives` - The knives to use for cutting
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "bevy",
+    derive(bevy::prelude::Component, bevy::prelude::Reflect)
+)]
 pub struct Brush {
     pub brushlets: Vec<Brushlet>,
     pub settings: BrushSettings,
@@ -78,22 +120,36 @@ impl Brush {
         }
     }
 
-    pub(crate) fn try_select(&self, raycast: &Raycast) -> bool {
+    pub fn try_select(&self, raycast: &Raycast) -> Option<RaycastResult> {
+        let mut closest = None;
+        let mut closest_distance = f64::INFINITY;
         for brushlet in self.brushlets.iter() {
-            if brushlet.try_select(&raycast) {
-                return true;
+            if let Some(result) = brushlet.try_select(&raycast) {
+                if result.distance < closest_distance {
+                    closest_distance = result.distance;
+                    closest = Some(result);
+                }
             }
         }
-        false
+        closest
     }
 
-    pub fn try_select_brushlet(&self, raycast: &Raycast) -> Option<BrushletSelection> {
+    pub fn try_select_brushlet(&self, raycast: &Raycast) -> Option<usize> {
+        let mut closest = None;
+        let mut closest_distance = f64::INFINITY;
         for (idx, brushlet) in self.brushlets.iter().enumerate() {
-            if brushlet.try_select(&raycast) {
-                return Some(BrushletSelection { brushlet, idx });
+            if let Some(result) = brushlet.try_select(&raycast) {
+                if result.distance < closest_distance {
+                    closest_distance = result.distance;
+                    closest = Some(idx);
+                }
             }
         }
-        None
+        closest
+    }
+
+    pub fn get_brushlet_mut(&mut self, idx: usize) -> Option<&mut Brushlet> {
+        self.brushlets.get_mut(idx)
     }
 
     /// Select a brushlet by index.
@@ -131,7 +187,15 @@ impl Brush {
         final_brushlet.to_mesh_data()
     }
 
-    pub fn transform(&mut self, transform: glam::DAffine3) {
+    pub fn compute_transform(&self) -> DAffine3 {
+        let mut transform = DAffine3::IDENTITY;
+        for brushlet in &self.brushlets {
+            transform = transform * brushlet.compute_transform();
+        }
+        transform
+    }
+
+    pub fn transform(&mut self, transform: DAffine3) {
         for brushlet in &mut self.brushlets {
             brushlet.transform(transform);
         }

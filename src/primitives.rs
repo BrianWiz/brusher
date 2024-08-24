@@ -1,3 +1,7 @@
+#[cfg(feature = "bevy")]
+use bevy::math::DVec3;
+
+#[cfg(not(feature = "bevy"))]
 use glam::DVec3;
 
 // A cuboid material indices

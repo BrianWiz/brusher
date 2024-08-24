@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use glam::DVec3;
+#[cfg(feature = "bevy")]
+use bevy::math::DVec3;
 
-use crate::broadphase::Aabb;
+#[cfg(not(feature = "bevy"))]
+use glam::DVec3;
 
 use super::{
     polygon::{Polygon, Vertex},

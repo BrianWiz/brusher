@@ -1,12 +1,15 @@
+use bevy::color::palettes::css::WHITE;
+use bevy::math::*;
+use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
+use bevy::render::settings::{RenderCreation, WgpuFeatures, WgpuSettings};
 use bevy::render::texture::{
     ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
 };
+use bevy::render::RenderPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-use glam::{DAffine3, DVec3};
-
 use brusher::prelude::*;
 
 // Helper enum to map materials to indices
@@ -22,11 +25,6 @@ impl From<MyMaterials> for usize {
 }
 
 #[derive(Component)]
-struct BrushComponent {
-    brush: Brush,
-}
-
-#[derive(Component)]
 struct BrushMesh;
 
 #[derive(Resource, Default)]
@@ -39,7 +37,20 @@ fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
 
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins((
+            DefaultPlugins.set(RenderPlugin {
+                render_creation: RenderCreation::Automatic(WgpuSettings {
+                    features: WgpuFeatures::POLYGON_MODE_LINE,
+                    ..default()
+                }),
+                ..default()
+            }),
+            WireframePlugin,
+        ))
+        .insert_resource(WireframeConfig {
+            global: true,
+            default_color: WHITE.into(),
+        })
         .add_plugins(PanOrbitCameraPlugin)
         .add_systems(Startup, setup_system)
         .add_systems(Update, animate_brush_system)
@@ -67,6 +78,10 @@ fn setup_system(
     // Camera
     commands.spawn((
         Camera3dBundle {
+            projection: Projection::Perspective(PerspectiveProjection {
+                fov: 90.0_f32.to_radians(),
+                ..default()
+            }),
             transform: Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
             ..default()
         },
@@ -162,7 +177,7 @@ fn setup_system(
     spawn_brush_meshes(&mut commands, &mut meshes, &proto_materials, &brush);
 
     // Spawn the brush entity
-    commands.spawn(BrushComponent { brush });
+    commands.spawn(brush);
 
     println!("Time elapsed: {:?}", time_now.elapsed());
 }
@@ -170,7 +185,7 @@ fn setup_system(
 fn animate_brush_system(
     time: Res<Time>,
     mut commands: Commands,
-    mut brush_components: Query<&mut BrushComponent>,
+    mut brush_components: Query<&mut Brush>,
     mut mesh_components: Query<Entity, With<BrushMesh>>,
     mut meshes: ResMut<Assets<Mesh>>,
     proto_materials: Res<ProtoMaterials>,
@@ -184,11 +199,11 @@ fn animate_brush_system(
         // animate the knives on a sine wave
         let time = time.elapsed_seconds_f64();
 
-        let mut brush = brush_component.brush.clone();
+        let mut brush = brush_component.clone();
 
         // animate the brush knives
         for knife in &mut brush.settings.knives {
-            knife.distance_from_origin = 4.0 + (time * 6.0 * std::f64::consts::PI).sin();
+            knife.distance_from_origin = 4.0 + (time * 3.0 * std::f64::consts::PI).sin();
         }
 
         // animate the first brushlet's origin
@@ -216,8 +231,7 @@ fn spawn_brush_meshes(
     proto_materials: &ProtoMaterials,
     brush: &Brush,
 ) {
-    let mesh_data = brush.to_mesh_data();
-    let meshes_with_materials = csg_to_bevy_meshes(&mesh_data);
+    let meshes_with_materials = brush.to_mesh_data().to_bevy_meshes();
     for (mesh, material_index) in meshes_with_materials {
         let material = match material_index {
             0 => proto_materials.grey.clone(),
@@ -235,26 +249,4 @@ fn spawn_brush_meshes(
             BrushMesh,
         ));
     }
-}
-
-fn csg_to_bevy_meshes(mesh_data: &MeshData) -> Vec<(Mesh, usize)> {
-    let mut meshes_with_materials: Vec<(Mesh, usize)> = vec![];
-
-    for polygon in &mesh_data.polygons {
-        let positions = polygon.positions_32();
-        let normals = polygon.normals_32();
-        let uvs = polygon.uvs();
-        let indices = polygon.indices();
-        let mut mesh = Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::default(),
-        );
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-        mesh.insert_indices(Indices::U32(indices));
-        meshes_with_materials.push((mesh, polygon.surface.material_index));
-    }
-
-    meshes_with_materials
 }
