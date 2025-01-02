@@ -1,10 +1,10 @@
+use bevy::image::ImageAddressMode;
+use bevy::image::ImageLoaderSettings;
+use bevy::image::ImageSampler;
+use bevy::image::ImageSamplerDescriptor;
 use bevy::math::*;
 use bevy::prelude::*;
-use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
-use bevy::render::render_asset::RenderAssetUsages;
-use bevy::render::texture::{
-    ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
-};
+use bevy::render::mesh::Mesh;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use brusher::prelude::*;
 
@@ -37,21 +37,15 @@ fn setup(
     mut commands: Commands,
 ) {
     // Light
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
-            shadows_enabled: true,
-            ..default()
-        },
-        transform: Transform::from_xyz(0.0, 0.0, 0.0),
-        ..default()
-    });
+    commands.spawn((
+        PointLight::default(),
+        Transform::from_translation(Vec3::new(4.0, 8.0, 4.0)),
+    ));
 
     // Camera
     commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
-            ..default()
-        },
+        Camera3d::default(),
+        Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
         PanOrbitCamera::default(),
     ));
 
@@ -163,12 +157,11 @@ fn setup(
             _ => material_proto_grey.clone(),
         };
 
-        commands.spawn(PbrBundle {
-            mesh: meshes.add(mesh),
-            material,
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-            ..default()
-        });
+        commands.spawn((
+            Mesh3d(meshes.add(mesh)),
+            MeshMaterial3d(material),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+        ));
     }
 
     println!("Time elapsed: {:?}", time_now.elapsed());
